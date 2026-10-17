@@ -1,25 +1,53 @@
 (function () {
     'use strict';
 
-    function applyTheme(theme) {
-        document.documentElement.setAttribute('data-theme', theme);
-        try { localStorage.setItem('dlm-theme', theme); } catch (e) {}
+    var PREF_KEY = 'dlm-theme';
+    var mql = window.matchMedia('(prefers-color-scheme: dark)');
+    var LABELS = { auto: '跟随系统', light: '浅色', dark: '深色' };
+    var ORDER = ['auto', 'dark', 'light'];
+
+    function getPref() {
+        try { return localStorage.getItem(PREF_KEY) || 'auto'; } catch (e) { return 'auto'; }
     }
 
-    function currentTheme() {
-        return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    function resolveTheme(pref) {
+        return pref === 'auto' ? (mql.matches ? 'dark' : 'light') : pref;
     }
+
+    function updateToggle() {
+        var btn = document.getElementById('theme-toggle');
+        if (!btn) { return; }
+        var pref = getPref();
+        btn.textContent = LABELS[pref] || '主题';
+        btn.title = '主题：' + (LABELS[pref] || '主题') + '（点击切换：跟随系统 / 深色 / 浅色）';
+    }
+
+    function applyPref(pref) {
+        document.documentElement.setAttribute('data-theme', resolveTheme(pref));
+        document.documentElement.setAttribute('data-theme-pref', pref);
+        try { localStorage.setItem(PREF_KEY, pref); } catch (e) {}
+        updateToggle();
+    }
+
+    mql.addEventListener('change', function () {
+        if (getPref() === 'auto') {
+            applyPref('auto');
+        }
+    });
 
     document.addEventListener('click', function (event) {
         var toggle = event.target.closest('#theme-toggle');
         if (toggle) {
-            applyTheme(currentTheme() === 'dark' ? 'light' : 'dark');
+            var next = ORDER[(ORDER.indexOf(getPref()) + 1) % ORDER.length];
+            applyPref(next);
         }
     });
 
+    applyPref(getPref());
+
     window.DLM = window.DLM || {};
-    window.DLM.applyTheme = applyTheme;
-    window.DLM.currentTheme = currentTheme;
+    window.DLM.applyTheme = applyPref;
+    window.DLM.currentPref = getPref;
 
     window.DLM.openModal = function (id) {
         var el = document.getElementById(id);
@@ -29,10 +57,6 @@
     window.DLM.closeModal = function (id) {
         var el = document.getElementById(id);
         if (el) { el.hidden = true; }
-    };
-
-    window.DLM.confirmSubmit = function (form, message) {
-        return window.confirm(message || '确定要执行该操作吗？');
     };
 
     window.DLM.copyText = function (text) {
@@ -66,13 +90,55 @@
         });
     }
 
+    var pendingForm = null;
+
+    function closeConfirm() {
+        var modal = document.getElementById('confirm-modal');
+        if (modal) { modal.hidden = true; }
+        pendingForm = null;
+    }
+
     document.addEventListener('submit', function (event) {
         var form = event.target;
-        if (form && form.matches && form.matches('[data-confirm]')) {
-            var message = form.getAttribute('data-confirm') || '确定要执行该操作吗？';
-            if (!window.confirm(message)) {
-                event.preventDefault();
-            }
+        if (!form || !form.matches || !form.matches('[data-confirm]')) {
+            return;
+        }
+        event.preventDefault();
+        var modal = document.getElementById('confirm-modal');
+        if (!modal) {
+            form.submit();
+            return;
+        }
+        pendingForm = form;
+        var messageEl = modal.querySelector('[data-confirm-message]');
+        if (messageEl) {
+            messageEl.textContent = form.getAttribute('data-confirm') || '确定要执行该操作吗？';
+        }
+        var titleEl = modal.querySelector('[data-confirm-title]');
+        if (titleEl) {
+            titleEl.textContent = form.getAttribute('data-confirm-title') || '确认操作';
+        }
+        modal.hidden = false;
+    });
+
+    document.addEventListener('click', function (event) {
+        var modal = document.getElementById('confirm-modal');
+        if (!modal || modal.hidden) { return; }
+        if (event.target.closest('[data-confirm-ok]')) {
+            var form = pendingForm;
+            closeConfirm();
+            if (form) { form.submit(); }
+            return;
+        }
+        if (event.target.closest('[data-confirm-cancel]') || event.target === modal) {
+            closeConfirm();
+        }
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            var modal = document.getElementById('confirm-modal');
+            if (modal && !modal.hidden) { closeConfirm(); }
         }
     });
 

@@ -13,11 +13,11 @@ use Dlm\Support\Helpers;
     <script>
         (function () {
             try {
-                var t = localStorage.getItem('dlm-theme');
-                if (!t) {
-                    t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-                }
-                document.documentElement.setAttribute('data-theme', t);
+                var pref = localStorage.getItem('dlm-theme') || 'auto';
+                var mql = window.matchMedia('(prefers-color-scheme: dark)');
+                var resolved = pref === 'auto' ? (mql.matches ? 'dark' : 'light') : pref;
+                document.documentElement.setAttribute('data-theme', resolved);
+                document.documentElement.setAttribute('data-theme-pref', pref);
             } catch (e) {}
         })();
     </script>
