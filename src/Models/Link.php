@@ -63,9 +63,10 @@ final class Link
         }
 
         if (trim($q) !== '') {
-            $where[] = '(l.`url` LIKE :qtext OR EXISTS (SELECT 1 FROM `link_values` `lvq` '
-                . 'WHERE `lvq`.`link_id` = l.`id` AND `lvq`.`value_text` LIKE :qtext))';
-            $params[':qtext'] = '%' . trim($q) . '%';
+            $where[] = '(l.`url` LIKE :qtext_url OR EXISTS (SELECT 1 FROM `link_values` `lvq` '
+                . 'WHERE `lvq`.`link_id` = l.`id` AND `lvq`.`value_text` LIKE :qtext_val))';
+            $params[':qtext_url'] = '%' . trim($q) . '%';
+            $params[':qtext_val'] = '%' . trim($q) . '%';
         }
 
         $whereSql = implode(' AND ', $where);
