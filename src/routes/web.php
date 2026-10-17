@@ -16,11 +16,11 @@ $router->post('/login', [AuthController::class, 'login'], ['middleware' => 'csrf
 $router->post('/logout', [AuthController::class, 'logout'], ['middleware' => 'csrf']);
 
 // WebUI 管理界面路由
-$router->get('/', [RepositoryController::class, 'index']);
-$router->get('/repos/new', [RepositoryController::class, 'create']);
+$router->get('/', [RepositoryController::class, 'index'], ['middleware' => 'admin']);
+$router->get('/repos/new', [RepositoryController::class, 'create'], ['middleware' => 'admin']);
 $router->post('/repos', [RepositoryController::class, 'store'], ['middleware' => ['admin', 'csrf']]);
-$router->get('/repos/{slug}', [LinkController::class, 'index']);
-$router->get('/repos/{slug}/edit', [RepositoryController::class, 'edit']);
+$router->get('/repos/{slug}', [LinkController::class, 'index'], ['middleware' => 'admin']);
+$router->get('/repos/{slug}/edit', [RepositoryController::class, 'edit'], ['middleware' => 'admin']);
 $router->post('/repos/{slug}', [RepositoryController::class, 'update'], ['middleware' => ['admin', 'csrf']]);
 $router->post('/repos/{slug}/delete', [RepositoryController::class, 'destroy'], ['middleware' => ['admin', 'csrf']]);
 $router->post('/repos/{slug}/links', [LinkController::class, 'store'], ['middleware' => ['admin', 'csrf']]);

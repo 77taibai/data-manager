@@ -106,6 +106,9 @@ function Invoke-Dlm {
 
 $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 
+$anon = Invoke-Dlm -Method 'GET' -Path '/' -Session $session -NoRedirect
+Write-Result '未登录访问首页被重定向到登录' ($anon.Status -eq 302 -and $anon.Location -match '/login') "status=$($anon.Status) loc=$($anon.Location)"
+
 $r = Invoke-Dlm -Method 'GET' -Path '/login' -Session $session
 $token = Get-Csrf $r.Content
 Write-Result '获取登录页与 CSRF' ($r.Status -eq 200 -and $token -ne '') "status=$($r.Status)"
@@ -150,12 +153,28 @@ $r = Invoke-Dlm -Method 'POST' -Path ($basePath + '/attributes') -Body @{
 } -Session $session -NoRedirect
 Write-Result '新建属性 color' ($r.Status -eq 302) "status=$($r.Status)"
 
+$r = Invoke-Dlm -Method 'POST' -Path ($basePath + '/attributes') -Body @{
+    _token      = $token
+    label       = '备注'
+    key         = 'note'
+    type        = 'text'
+    required    = '0'
+    constrained = '0'
+    sort_order  = '1'
+    options     = ''
+} -Session $session -NoRedirect
+Write-Result '新建属性 note' ($r.Status -eq 302) "status=$($r.Status)"
+
 $r = Invoke-Dlm -Method 'POST' -Path ($basePath + '/links') -Body @{
     _token             = $token
     url                = 'http://example.com/a'
     'attributes[color]' = '红'
+    'attributes[note]' = 'TODO-TEST'
 } -Session $session -NoRedirect
 Write-Result '新增链接' ($r.Status -eq 302) "status=$($r.Status)"
+
+$r = Invoke-Dlm -Method 'GET' -Path $basePath -Session $session
+Write-Result '文本属性中的大写T未被破坏' ($r.Content -match 'TODO-TEST' -and -not ($r.Content -match ' ODO-TEST')) "status=$($r.Status)"
 
 $query = 'filter%5Bcolor%5D=' + [System.Uri]::EscapeDataString('红') + '&q=example'
 $r = Invoke-Dlm -Method 'GET' -Path ($basePath + '?' + $query) -Session $session

@@ -56,7 +56,8 @@ final class AttributeController
             return;
         }
         $repositoryId = (int) $repository['id'];
-        if (Attribute::find((int) $id) === null) {
+        $existing = Attribute::find((int) $id);
+        if ($existing === null || (int) $existing['repository_id'] !== $repositoryId) {
             Flash::error('属性不存在');
             Response::redirect('/repos/' . (string) $repository['slug'] . '/attributes');
             return;
@@ -80,6 +81,13 @@ final class AttributeController
         $repository = Repository::findBySlug($slug);
         if ($repository === null) {
             Response::html('<h1>404 存储库不存在</h1>', 404);
+            return;
+        }
+        $repositoryId = (int) $repository['id'];
+        $existing = Attribute::find((int) $id);
+        if ($existing === null || (int) $existing['repository_id'] !== $repositoryId) {
+            Flash::error('属性不存在');
+            Response::redirect('/repos/' . (string) $repository['slug'] . '/attributes');
             return;
         }
         Attribute::delete((int) $id);

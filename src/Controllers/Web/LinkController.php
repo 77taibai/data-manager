@@ -74,7 +74,7 @@ final class LinkController
         }
         $repositoryId = (int) $repository['id'];
         $url = (string) $request->input('url', '');
-        $values = $this->valuesFromRequest($request);
+        $values = $this->valuesFromRequest($request, $repositoryId);
 
         $result = Link::create($repositoryId, $url, $values);
         if ($result['errors'] !== []) {
@@ -94,7 +94,7 @@ final class LinkController
         }
         $repositoryId = (int) $repository['id'];
         $url = (string) $request->input('url', '');
-        $values = $this->valuesFromRequest($request);
+        $values = $this->valuesFromRequest($request, $repositoryId);
 
         $result = Link::update((int) $id, $repositoryId, $url, $values);
         if ($result['errors'] !== []) {
@@ -138,7 +138,11 @@ final class LinkController
             Flash::success('已删除 ' . $count . ' 条链接');
         } elseif ($action === 'set_attr') {
             $attrKey = trim((string) $request->input('attr_key', ''));
-            $rawValue = str_replace('T', ' ', (string) $request->input('attr_value', ''));
+            $rawValue = (string) $request->input('attr_value', '');
+            $bulkAttr = Attribute::findByKey($repositoryId, $attrKey);
+            if ($bulkAttr !== null && (string) $bulkAttr['type'] === Attribute::TYPE_DATE) {
+                $rawValue = str_replace('T', ' ', $rawValue);
+            }
             $value = trim($rawValue) === '' ? null : $rawValue;
             $res = Link::bulkSetAttribute($repositoryId, $ids, $attrKey, $value);
             if ($res['errors'] !== []) {
@@ -457,22 +461,32 @@ final class LinkController
         return $filters;
     }
 
-    private function valuesFromRequest(Request $request): array
+    private function valuesFromRequest(Request $request, int $repositoryId): array
     {
         $raw = $request->input('attributes', []);
         if (!is_array($raw)) {
             return [];
         }
+        $typesByKey = [];
+        foreach (Attribute::forRepository($repositoryId) as $attr) {
+            $typesByKey[(string) $attr['key']] = (string) $attr['type'];
+        }
+
         $values = [];
         foreach ($raw as $key => $value) {
+            $key = (string) $key;
             if ($value === null) {
-                $values[(string) $key] = null;
+                $values[$key] = null;
                 continue;
             }
             if (!is_scalar($value)) {
                 continue;
             }
-            $values[(string) $key] = str_replace('T', ' ', (string) $value);
+            $string = (string) $value;
+            if (($typesByKey[$key] ?? '') === Attribute::TYPE_DATE) {
+                $string = str_replace('T', ' ', $string);
+            }
+            $values[$key] = $string;
         }
         return $values;
     }
