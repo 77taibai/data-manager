@@ -1,0 +1,6 @@
+/config.php
+/logs/
+/.worktrees/
+*.log
+.DS_Store
+Thumbs.db
