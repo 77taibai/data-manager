@@ -1,14 +1,34 @@
 ---
 feature: download-link-manager
-status: designed
+status: delivered
 updated: 2026-10-17
 branch: main
-commits:
+commits: e56b986..fd60399
 ---
 
 # 下载链接管理系统
 
 ## Report
+
+**What was built** — 一套零依赖的纯原生 PHP 下载链接管理系统，可直接上传到共享 PHP 空间。核心是「存储库 + 属性 schema」模型：每个存储库定义自己的属性（文本 / 日期 / 文件大小，可配置必填、可配置“仅允许指定值”单选约束），库内链接共用同一套属性，固定字段只有 URL（同库内唯一）。数据以规范化 EAV 存于 MySQL 5.6（`repositories / attributes / attribute_options / links / link_values / api_keys / admin_users / settings`）。
+
+**功能**：首次访问安装向导（测试连接 → 建表 → 建管理员 → 生成受保护的 config.php）；单管理员 Session 登录 + 全局 CSRF；存储库网格首页与 CRUD（级联删除、二次确认）；属性管理；链接列表（宽屏表格 / 窄屏卡片自适应、按属性生成过滤控件 + 关键词搜索、分页排序、多选批量删除与批量改属性）；CSV 批量导入（粘贴/上传 + 前 N 行预览）与导出（全部/选中，含 UTF-8 BOM，可再导入）；APIKEY 管理（每 KEY 绑定单库、只读/读写两档、可过期、明文仅显示一次、sha256 存储）。HTTP API 前缀 `/v1`（`schema` 只读、`links` 增删改查、数组批量新增、`filter[key]`/`filter[key_gte|lte]`/`q`/分页排序、统一 `{code,message,data}` 响应与状态码），Bearer Token 鉴权、越库隔离、只读 KEY 写操作 403。深色模式支持跟随系统与手动切换（localStorage）。
+
+**Verification** — 命令与结果：
+- `php -l` 递归全部 46 个 `.php` → 0 错误
+- `php tests/unit.php` → PASS 31 / FAIL 0
+- `tests/web_smoke.ps1`（真实 HTTP）→ PASS 16 / FAIL 0
+- `tests/api_smoke.ps1` → PASS 10 / FAIL 0
+- 额外端到端（CSRF 419、config/src 403、三类型属性、过滤、CSV 往返、重复导入跳过、批量删除、跨库 404）→ PASS 12 / FAIL 0
+- 验证环境：本机 PHP 8.5.11 + MySQL 5.6.51（由 php-manager / mysql-manager 启动，验证后已关闭）
+
+**Journey log** —
+- 采用子代理拆分：主代理搭建骨架 + 模型/安装/认证（接口契约），再并行委派 API 层与 WebUI 层（文件集不重叠），最后由主代理集成、验证与委派独立审查。
+- 真实缺陷 1：`Link::query` 复用了命名占位符 `:qtext`，PDO 原生预处理报 HY093；改用两个占位符修复。
+- 真实缺陷 2（审查发现）：管理页 GET 路由漏配 `admin` 中间件，导致未鉴权可读；已补中间件并加回归测试。
+- 真实缺陷 3（审查发现）：文本属性值被无条件 `str_replace('T',' ',...)` 破坏；改为仅 `date` 类型转换，并加回归测试。
+- 工具经验：PowerShell 5.1 的 `-MaximumRedirection 0` 抛异常且无 Response，应改用 `AllowAutoRedirect=$false`；双引号字符串中 `$var?` 会被当作变量名的一部分，应写 `${var}`；切勿用 `Get-Content`/`Set-Content` 往返处理中文 UTF-8 源文件（会破坏编码）。
+
 
 ## [S1] Problem
 
@@ -19,7 +39,7 @@ commits:
 - 运行环境：PHP 8.5 + MySQL 5.6.51。
 - 零第三方依赖（无 Composer），纯原生 PHP，可直接 FTP 上传到共享空间。
 - 数据库访问统一走 PDO(mysql) + 预处理语句。
-- MySQL 5.6 无 JSON 类型、无 `innodb_default_row_format` 保证，索引前缀按 191 字符（utf8mb4）设计。
+- MySQL 5.6 无 JSON 类型、无 `innodb_default_row_format` 保证，索引前缀按 180 字符（utf8mb4，COMPACT 行格式 767 字节上限）设计；`links.url` 取 `VARCHAR(1500)` 以适配行大小限制。
 
 ## [S2] Design
 
@@ -63,9 +83,9 @@ commits:
 
 - `repositories(id PK, name VARCHAR(100), slug VARCHAR(100) UNIQUE, description TEXT NULL, created_at DATETIME, updated_at DATETIME)`
 - `attributes(id PK, repository_id FK→repositories ON DELETE CASCADE, `key` VARCHAR(50), label VARCHAR(100), type ENUM('text','date','filesize'), required TINYINT(1) DEFAULT 0, constrained TINYINT(1) DEFAULT 0, sort_order INT DEFAULT 0, created_at, updated_at, UNIQUE(repository_id, `key`))`
-- `attribute_options(id PK, attribute_id FK→attributes ON DELETE CASCADE, value VARCHAR(255), sort_order INT DEFAULT 0, UNIQUE(attribute_id, value))`
-- `links(id PK, repository_id FK→repositories ON DELETE CASCADE, url VARCHAR(2048), url_hash CHAR(64), created_at, updated_at, UNIQUE(repository_id, url_hash))` — `url_hash` = sha256(规范化 url)。
-- `link_values(link_id FK→links ON DELETE CASCADE, attribute_id FK→attributes ON DELETE CASCADE, value_text TEXT NULL, value_date DATETIME NULL, value_num BIGINT NULL, PRIMARY KEY(link_id, attribute_id), INDEX(attribute_id, value_text(191)), INDEX(attribute_id, value_date), INDEX(attribute_id, value_num))`
+- `attribute_options(id PK, attribute_id FK→attributes ON DELETE CASCADE, value VARCHAR(255), sort_order INT DEFAULT 0, UNIQUE(attribute_id, value(180)))`
+- `links(id PK, repository_id FK→repositories ON DELETE CASCADE, url VARCHAR(1500), url_hash CHAR(64), created_at, updated_at, UNIQUE(repository_id, url_hash))` — `url_hash` = sha256(规范化 url)。
+- `link_values(link_id FK→links ON DELETE CASCADE, attribute_id FK→attributes ON DELETE CASCADE, value_text TEXT NULL, value_date DATETIME NULL, value_num BIGINT NULL, PRIMARY KEY(link_id, attribute_id), INDEX(attribute_id, value_text(180)), INDEX(attribute_id, value_date), INDEX(attribute_id, value_num))`
 - `api_keys(id PK, repository_id FK→repositories ON DELETE CASCADE, name VARCHAR(100) NULL, key_hash CHAR(64) UNIQUE, key_prefix VARCHAR(16), permissions ENUM('read','write') DEFAULT 'read', expires_at DATETIME NULL, created_at DATETIME)`
 - `admin_users(id PK, username VARCHAR(50) UNIQUE, password_hash VARCHAR(255), created_at DATETIME)`
 - `settings(`key` VARCHAR(50) PK, `value` TEXT)` — 存放 `schema_version`、`installed`。
@@ -139,17 +159,17 @@ commits:
 
 ## Tasks
 
-- [ ] T1：项目骨架、.htaccess、config 生成、bootstrap、路由与 PDO 封装 — 验收：访问空配置重定向安装，访问已安装进入登录。 (covers: S2.2, S2.7)
-- [ ] T2：schema.sql + 安装向导（连接测试、建表、建管理员、写 config） — 验收：向导跑完能登录。 (covers: S2.3, S2.7; depends: T1)
-- [ ] T3：管理员会话认证 + CSRF + 登录页 — 验收：未登录访问管理页被重定向，登录后可访问。 (covers: S2.6, S2.8; depends: T2)
-- [ ] T4：模型层 Repository/Attribute/Option/Link/LinkValue/ApiKey/AdminUser/Setting（含 EAV 写入与类型化读取、url 唯一） — 验收：脚本调用模型能完成 CRUD 且类型正确。 (covers: S2.3, S2.4; depends: T2)
-- [ ] T5：存储库网格首页 + 存储库 CRUD — 验收：可增删改存储库并级联。 (covers: S2.6; depends: T3, T4)
-- [ ] T6：属性管理（类型/必填/约束/可选值/排序） — 验收：受约束属性仅能选列表值。 (covers: S2.3, S2.6; depends: T4)
-- [ ] T7：链接列表 + 过滤控件 + 关键词 + 分页排序 + 宽窄屏切换 — 验收：按属性过滤结果正确，窄屏为卡片。 (covers: S2.4, S2.6; depends: T4, T6)
-- [ ] T8：链接单条新增/编辑/删除 + 批量删除 + 批量改属性 — 验收：操作生效并可撤销式确认。 (covers: S2.6; depends: T7)
-- [ ] T9：CSV 导入（粘贴/上传 + 前 N 行预览）+ CSV 导出（全部/选中） — 验收：表头列名=属性 key，导入预览准确，导出可再导入。 (covers: S2.6; depends: T8)
-- [ ] T10：API 鉴权（Bearer + 哈希 + 过期 + 只读/读写）+ schema 接口 — 验收：无/错 token 401、只读 KEY 写返回 403、越库不可见。 (covers: S2.5, S2.8; depends: T4)
-- [ ] T11：API 链接 CRUD + 批量新增 + 过滤/分页/排序 + 错误码 — 验收：API 契约与响应格式一致。 (covers: S2.5; depends: T10)
-- [ ] T12：APIKEY 管理界面（创建/列表/吊销/过期/备注） — 验收：创建仅显示一次明文，吊销后失效。 (covers: S2.6; depends: T3, T4)
-- [ ] T13：CSS/JS：响应式布局、深色模式、过滤控件、弹窗、多选交互 — 验收：桌面与移动端均可用，深浅色可切换。 (covers: S2.6; depends: T7)
-- [ ] T14：验证：本地 PHP8.5 + MySQL5.6 起服务，跑单元脚本与 HTTP 冒烟脚本 — 验收：全部通过并记录命令与结果。 (covers: S2.9; depends: T1..T13)
+- [x] T1：项目骨架、.htaccess、config 生成、bootstrap、路由与 PDO 封装 — 验收：访问空配置重定向安装，访问已安装进入登录。 (covers: S2.2, S2.7)
+- [x] T2：schema.sql + 安装向导（连接测试、建表、建管理员、写 config） — 验收：向导跑完能登录。 (covers: S2.3, S2.7; depends: T1)
+- [x] T3：管理员会话认证 + CSRF + 登录页 — 验收：未登录访问管理页被重定向，登录后可访问。 (covers: S2.6, S2.8; depends: T2)
+- [x] T4：模型层 Repository/Attribute/Option/Link/LinkValue/ApiKey/AdminUser/Setting（含 EAV 写入与类型化读取、url 唯一） — 验收：脚本调用模型能完成 CRUD 且类型正确。 (covers: S2.3, S2.4; depends: T2)
+- [x] T5：存储库网格首页 + 存储库 CRUD — 验收：可增删改存储库并级联。 (covers: S2.6; depends: T3, T4)
+- [x] T6：属性管理（类型/必填/约束/可选值/排序） — 验收：受约束属性仅能选列表值。 (covers: S2.3, S2.6; depends: T4)
+- [x] T7：链接列表 + 过滤控件 + 关键词 + 分页排序 + 宽窄屏切换 — 验收：按属性过滤结果正确，窄屏为卡片。 (covers: S2.4, S2.6; depends: T4, T6)
+- [x] T8：链接单条新增/编辑/删除 + 批量删除 + 批量改属性 — 验收：操作生效并可撤销式确认。 (covers: S2.6; depends: T7)
+- [x] T9：CSV 导入（粘贴/上传 + 前 N 行预览）+ CSV 导出（全部/选中） — 验收：表头列名=属性 key，导入预览准确，导出可再导入。 (covers: S2.6; depends: T8)
+- [x] T10：API 鉴权（Bearer + 哈希 + 过期 + 只读/读写）+ schema 接口 — 验收：无/错 token 401、只读 KEY 写返回 403、越库不可见。 (covers: S2.5, S2.8; depends: T4)
+- [x] T11：API 链接 CRUD + 批量新增 + 过滤/分页/排序 + 错误码 — 验收：API 契约与响应格式一致。 (covers: S2.5; depends: T10)
+- [x] T12：APIKEY 管理界面（创建/列表/吊销/过期/备注） — 验收：创建仅显示一次明文，吊销后失效。 (covers: S2.6; depends: T3, T4)
+- [x] T13：CSS/JS：响应式布局、深色模式、过滤控件、弹窗、多选交互 — 验收：桌面与移动端均可用，深浅色可切换。 (covers: S2.6; depends: T7)
+- [x] T14：验证：本地 PHP8.5 + MySQL5.6 起服务，跑单元脚本与 HTTP 冒烟脚本 — 验收：全部通过并记录命令与结果。 (covers: S2.9; depends: T1..T13)
