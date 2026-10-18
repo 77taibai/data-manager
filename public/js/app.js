@@ -157,7 +157,38 @@
         var box = document.querySelector('[data-bulk-attr]');
         if (!select || !box) { return; }
         box.hidden = select.value !== 'set_attr';
+
+        document.querySelectorAll('[data-bulk-submit]').forEach(function (btn) {
+            var isExport = select.value === 'export';
+            btn.textContent = isExport
+                ? (btn.getAttribute('data-label-export') || '导出 CSV')
+                : (btn.getAttribute('data-label-run') || '执行');
+            btn.classList.toggle('btn-danger', !isExport);
+            btn.classList.toggle('btn-primary', isExport);
+        });
     }
+
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!form || form.id !== 'bulk-form') { return; }
+        var select = form.querySelector('[data-bulk-action]');
+        if (!select || select.value !== 'export') { return; }
+
+        var exportUrl = form.getAttribute('data-export-url') || '';
+        var boxes = form.elements['ids[]'];
+        var list = !boxes ? [] : (boxes.length === undefined ? [boxes] : Array.prototype.slice.call(boxes));
+        var seen = {};
+        var ids = [];
+        list.forEach(function (cb) {
+            if (cb.checked && !seen[cb.value]) {
+                seen[cb.value] = true;
+                ids.push(cb.value);
+            }
+        });
+        event.preventDefault();
+        if (exportUrl === '' || ids.length === 0) { return; }
+        window.location.href = exportUrl + '?ids=' + encodeURIComponent(ids.join(','));
+    });
 
     document.addEventListener('change', function (event) {
         var checkAll = event.target.closest('[data-check-all]');

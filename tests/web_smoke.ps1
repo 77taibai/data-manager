@@ -216,6 +216,29 @@ if ($linkId -ne '') {
 }
 Write-Result '批量修改属性' $bulkOk $bulkDetail
 
+$bulkExportOk = $false
+$bulkExportDetail = 'link-id-not-found'
+if ($linkId -ne '') {
+    $r = Invoke-Dlm -Method 'POST' -Path ($basePath + '/links/bulk') -Body @{
+        _token  = $token
+        action  = 'export'
+        'ids[]' = $linkId
+    } -Session $session
+    $bulkExportOk = ($r.Status -eq 200 -and $r.Content -match 'url' -and $r.Content -match 'color')
+    $bulkExportDetail = "status=$($r.Status)"
+}
+Write-Result '批量导出选中为 CSV' $bulkExportOk $bulkExportDetail
+
+$selectedExportOk = $false
+$selectedExportDetail = 'link-id-not-found'
+if ($linkId -ne '') {
+    $r = Invoke-Dlm -Method 'GET' -Path ($basePath + '/export?ids=' + $linkId) -Session $session
+    $lines = @($r.Content -split "`r?`n" | Where-Object { $_.Trim() -ne '' })
+    $selectedExportOk = ($r.Status -eq 200 -and $lines.Count -eq 2)
+    $selectedExportDetail = "status=$($r.Status) lines=$($lines.Count)"
+}
+Write-Result '导出指定 ids 仅含表头与选中行' $selectedExportOk $selectedExportDetail
+
 $r = Invoke-Dlm -Method 'GET' -Path '/keys' -Session $session
 $repoIdMatch = [regex]::Match($r.Content, '<select name="repository_id"[\s\S]*?<option value="(\d+)"')
 $repoId = ''

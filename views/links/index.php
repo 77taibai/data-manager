@@ -61,12 +61,14 @@ $dateInputValue = static function (string $value): string {
         <a class="btn" href="<?= Helpers::url($basePath . '/import') ?>">批量导入</a>
         <a class="btn" href="<?= Helpers::url($basePath . '/export') ?>">全部导出</a>
         <a class="btn" href="<?= Helpers::url($basePath . '/attributes') ?>">属性</a>
-        <form id="bulk-form" class="bulk-bar" method="post" action="<?= Helpers::url($basePath . '/links/bulk') ?>">
+        <form id="bulk-form" class="bulk-bar" method="post" action="<?= Helpers::url($basePath . '/links/bulk') ?>"
+              data-export-url="<?= Helpers::url($basePath . '/export') ?>">
             <?= Csrf::field() ?>
             <span class="bulk-count">已选 <strong data-bulk-count>0</strong> 项</span>
             <select name="action" data-bulk-action>
                 <option value="delete">批量删除</option>
                 <option value="set_attr">批量修改属性</option>
+                <option value="export">批量导出选中（CSV）</option>
             </select>
             <span data-bulk-attr hidden class="bulk-attr">
                 <select name="attr_key">
@@ -76,7 +78,8 @@ $dateInputValue = static function (string $value): string {
                 </select>
                 <input type="text" name="attr_value" placeholder="新值（留空清除）">
             </span>
-            <button type="submit" class="btn btn-danger" data-bulk-submit disabled>执行</button>
+            <button type="submit" class="btn btn-danger" data-bulk-submit
+                    data-label-run="执行" data-label-export="导出 CSV" disabled>执行</button>
         </form>
     </div>
 </div>

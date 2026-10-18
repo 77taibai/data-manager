@@ -150,6 +150,20 @@ final class LinkController
             } else {
                 Flash::success('已更新 ' . $res['updated'] . ' 条链接');
             }
+        } elseif ($action === 'export') {
+            $links = Link::findManyByIds($repositoryId, $ids);
+            if ($links === []) {
+                Flash::error('请先选择要导出的链接');
+                Response::redirect('/repos/' . (string) $repository['slug']);
+                return;
+            }
+            $this->sendCsv(
+                (string) $repository['slug'],
+                Attribute::forRepository($repositoryId),
+                $links,
+                true
+            );
+            return;
         } else {
             Flash::error('未知的批量操作');
         }
@@ -173,20 +187,27 @@ final class LinkController
                 static fn (int $i): bool => $i > 0
             ));
             $links = Link::findManyByIds($repositoryId, $ids);
-        } else {
-            $links = [];
-            $page = 1;
-            $total = null;
-            do {
-                $res = Link::query($repositoryId, [], '', '-created_at', $page, 200);
-                if ($total === null) {
-                    $total = (int) $res['total'];
-                }
-                $links = array_merge($links, $res['items']);
-                $page++;
-            } while ($res['items'] !== [] && count($links) < (int) $total);
+            $this->sendCsv($slug, $attributes, $links, true);
+            return;
         }
 
+        $links = [];
+        $page = 1;
+        $total = null;
+        do {
+            $res = Link::query($repositoryId, [], '', '-created_at', $page, 200);
+            if ($total === null) {
+                $total = (int) $res['total'];
+            }
+            $links = array_merge($links, $res['items']);
+            $page++;
+        } while ($res['items'] !== [] && count($links) < (int) $total);
+
+        $this->sendCsv($slug, $attributes, $links, false);
+    }
+
+    private function sendCsv(string $slug, array $attributes, array $links, bool $selectedOnly): void
+    {
         $rows = [];
         $header = ['url'];
         foreach ($attributes as $attr) {
@@ -217,7 +238,8 @@ final class LinkController
         $content = (string) stream_get_contents($fh);
         fclose($fh);
 
-        Response::download($slug . '-links.csv', $content);
+        $filename = $slug . ($selectedOnly ? '-links-selected.csv' : '-links.csv');
+        Response::download($filename, $content);
     }
 
     public function importForm(Request $request, string $slug): void
