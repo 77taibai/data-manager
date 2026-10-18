@@ -10,6 +10,8 @@ $items = $items ?? [];
 $total = (int) ($total ?? 0);
 $page = (int) ($page ?? 1);
 $pageSize = (int) ($pageSize ?? 20);
+$pageSizeOptions = $pageSizeOptions ?? [10, 20, 50, 100];
+$defaultPageSize = 20;
 $q = (string) ($q ?? '');
 $sort = (string) ($sort ?? '-created_at');
 $rawFilters = $rawFilters ?? [];
@@ -19,7 +21,7 @@ $basePath = '/repos/' . $slug;
 $typeNames = ['text' => '文本', 'date' => '日期时间', 'filesize' => '文件大小'];
 $totalPages = max(1, (int) ceil($total / max(1, $pageSize)));
 
-$buildQuery = static function (array $overrides) use ($rawFilters, $q, $sort, $pageSize, $basePath): string {
+$buildQuery = static function (array $overrides) use ($rawFilters, $q, $sort, $pageSize, $defaultPageSize, $basePath): string {
     $params = [];
     if ($rawFilters !== []) {
         $params['filter'] = $rawFilters;
@@ -30,7 +32,7 @@ $buildQuery = static function (array $overrides) use ($rawFilters, $q, $sort, $p
     if ($sort !== '') {
         $params['sort'] = $sort;
     }
-    if ((int) $pageSize !== 20) {
+    if ((int) $pageSize !== (int) $defaultPageSize) {
         $params['page_size'] = $pageSize;
     }
     foreach ($overrides as $k => $v) {
@@ -39,6 +41,9 @@ $buildQuery = static function (array $overrides) use ($rawFilters, $q, $sort, $p
         } else {
             $params[$k] = $v;
         }
+    }
+    if (isset($params['page_size']) && (int) $params['page_size'] === (int) $defaultPageSize) {
+        unset($params['page_size']);
     }
     $qs = http_build_query($params);
     return $basePath . ($qs !== '' ? '?' . $qs : '');
@@ -116,6 +121,9 @@ $dateInputValue = static function (string $value): string {
         <input type="search" name="q" value="<?= Helpers::e($q) ?>" placeholder="URL 或文本属性">
     </div>
     <input type="hidden" name="sort" value="<?= Helpers::e($sort) ?>">
+    <?php if ($pageSize !== (int) $defaultPageSize): ?>
+        <input type="hidden" name="page_size" value="<?= $pageSize ?>">
+    <?php endif; ?>
     <div class="field field-actions">
         <button type="submit" class="btn btn-primary">筛选</button>
         <a class="btn" href="<?= Helpers::url($basePath) ?>">重置</a>
@@ -227,6 +235,15 @@ $dateInputValue = static function (string $value): string {
         <?php if ($page < $totalPages): ?>
             <a class="btn btn-sm" href="<?= Helpers::url($buildQuery(['page' => $page + 1])) ?>">下一页</a>
         <?php endif; ?>
+        <label class="page-size">
+            <span class="muted">每页</span>
+            <select data-page-size aria-label="每页显示条数">
+                <?php foreach ($pageSizeOptions as $option): ?>
+                    <?php $option = (int) $option; ?>
+                    <option value="<?= $option ?>" data-url="<?= Helpers::e(Helpers::url($buildQuery(['page' => 1, 'page_size' => $option]))) ?>"<?= $option === $pageSize ? ' selected' : '' ?>><?= $option ?> 条</option>
+                <?php endforeach; ?>
+            </select>
+        </label>
     </div>
 <?php endif; ?>
 

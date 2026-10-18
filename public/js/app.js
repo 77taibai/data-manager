@@ -205,6 +205,12 @@
         if (event.target.closest && event.target.closest('[data-bulk-action]')) {
             toggleBulkAttr();
         }
+        var pageSize = event.target.closest ? event.target.closest('[data-page-size]') : null;
+        if (pageSize) {
+            var option = pageSize.options[pageSize.selectedIndex];
+            var url = option ? option.getAttribute('data-url') : '';
+            if (url) { window.location.href = url; }
+        }
     });
 
     function fillLinkForm(data, mode) {

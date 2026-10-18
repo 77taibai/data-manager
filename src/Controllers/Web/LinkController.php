@@ -14,6 +14,10 @@ use Dlm\Support\View;
 
 final class LinkController
 {
+    /** 预置的每页条数选项（不支持用户自定义输入） */
+    public const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+    public const DEFAULT_PAGE_SIZE = 20;
+
     private const FILTER_OPERATORS = [
         '_contains' => 'contains',
         '_gte' => 'gte',
@@ -44,9 +48,9 @@ final class LinkController
             $sort = '-created_at';
         }
         $page = max(1, (int) $request->query('page', 1));
-        $pageSize = (int) $request->query('page_size', 20);
-        if ($pageSize < 1) {
-            $pageSize = 20;
+        $pageSize = (int) $request->query('page_size', self::DEFAULT_PAGE_SIZE);
+        if (!in_array($pageSize, self::PAGE_SIZE_OPTIONS, true)) {
+            $pageSize = self::DEFAULT_PAGE_SIZE;
         }
 
         $result = Link::query($repositoryId, $filters, $q, $sort, $page, $pageSize);
@@ -59,6 +63,7 @@ final class LinkController
             'total' => $result['total'],
             'page' => $result['page'],
             'pageSize' => $result['page_size'],
+            'pageSizeOptions' => self::PAGE_SIZE_OPTIONS,
             'q' => $q,
             'sort' => $sort,
             'rawFilters' => $rawFilters,
