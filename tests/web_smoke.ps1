@@ -1,6 +1,5 @@
 ﻿param(
     [string]$BaseUrl = 'http://127.0.0.1:8000',
-    [Parameter(Mandatory = $true)][string]$Username,
     [Parameter(Mandatory = $true)][string]$Password,
     [string]$RepoSlug = ''
 )
@@ -113,7 +112,7 @@ $r = Invoke-Dlm -Method 'GET' -Path '/login' -Session $session
 $token = Get-Csrf $r.Content
 Write-Result '获取登录页与 CSRF' ($r.Status -eq 200 -and $token -ne '') "status=$($r.Status)"
 
-$r = Invoke-Dlm -Method 'POST' -Path '/login' -Body @{ _token = $token; username = $Username; password = $Password } -Session $session -NoRedirect
+$r = Invoke-Dlm -Method 'POST' -Path '/login' -Body @{ _token = $token; password = $Password } -Session $session -NoRedirect
 Write-Result '登录返回 302' ($r.Status -eq 302) "status=$($r.Status)"
 
 $r = Invoke-Dlm -Method 'GET' -Path '/' -Session $session

@@ -10,16 +10,19 @@ commits: e56b986..fd60399
 
 ## Report
 
-**What was built** — 一套零依赖的纯原生 PHP 下载链接管理系统，可直接上传到共享 PHP 空间。核心是「存储库 + 属性 schema」模型：每个存储库定义自己的属性（文本 / 日期 / 文件大小，可配置必填、可配置“仅允许指定值”单选约束），库内链接共用同一套属性，固定字段只有 URL（同库内唯一）。数据以规范化 EAV 存于 MySQL 5.6（`repositories / attributes / attribute_options / links / link_values / api_keys / admin_users / settings`）。
+**What was built** — 一套零依赖的纯原生 PHP 下载链接管理系统，可直接上传到共享 PHP 空间。核心是「存储库 + 属性 schema」模型：每个存储库定义自己的属性（文本 / 日期 / 文件大小，可配置必填、可配置“仅允许指定值”单选约束），库内链接共用同一套属性，固定字段只有 URL（同库内唯一）。数据以规范化 EAV 存于 MySQL 5.6（`repositories / attributes / attribute_options / links / link_values / api_keys / settings`）。
 
-**功能**：首次访问安装向导（测试连接 → 建表 → 建管理员 → 生成受保护的 config.php）；单管理员 Session 登录 + 全局 CSRF；存储库网格首页与 CRUD（级联删除、二次确认）；属性管理；链接列表（宽屏表格 / 窄屏卡片自适应、按属性生成过滤控件 + 关键词搜索、分页排序、多选批量删除与批量改属性）；CSV 批量导入（粘贴/上传 + 前 N 行预览）与导出（全部/选中，含 UTF-8 BOM，可再导入）；APIKEY 管理（每 KEY 绑定单库、只读/读写两档、可过期、明文仅显示一次、sha256 存储）。HTTP API 前缀 `/v1`（`schema` 只读、`links` 增删改查、数组批量新增、`filter[key]`/`filter[key_gte|lte]`/`q`/分页排序、统一 `{code,message,data}` 响应与状态码），Bearer Token 鉴权、越库隔离、只读 KEY 写操作 403。深色模式支持跟随系统与手动切换（localStorage）。
+**功能**：首次访问安装向导（测试连接 → 建表 → 设置管理密码 → 生成受保护的 config.php）；单用户密码 Session 登录（密码哈希存 config.php，不入库）+ 全局 CSRF；存储库网格首页与 CRUD（级联删除、二次确认）；属性管理；链接列表（宽屏表格 / 窄屏卡片自适应、按属性生成过滤控件 + 关键词搜索、分页排序、多选批量删除与批量改属性）；CSV 批量导入（粘贴/上传 + 前 N 行预览）与导出（全部/选中，含 UTF-8 BOM，可再导入）；APIKEY 管理（每 KEY 绑定单库、只读/读写两档、可过期、明文仅显示一次、sha256 存储）。HTTP API 前缀 `/v1`（`schema` 只读、`links` 增删改查、数组批量新增、`filter[key]`/`filter[key_gte|lte]`/`q`/分页排序、统一 `{code,message,data}` 响应与状态码），Bearer Token 鉴权、越库隔离、只读 KEY 写操作 403。深色模式支持跟随系统与手动切换（localStorage）。
 
 **Verification** — 命令与结果：
-- `php -l` 递归全部 46 个 `.php` → 0 错误
+- `php -l` 递归全部 47 个 `.php` → 0 错误
 - `php tests/unit.php` → PASS 31 / FAIL 0
-- `tests/web_smoke.ps1`（真实 HTTP）→ PASS 16 / FAIL 0
+- `php tests/oidc_jwt.php` → PASS 14 / FAIL 0（RS/ES 六种算法、篡改、alg=none、kid 匹配）
+- `tests/web_smoke.ps1`（真实 HTTP）→ PASS 16 / FAIL 0；单用户改造后复测 PASS 18 / FAIL 0
 - `tests/api_smoke.ps1` → PASS 10 / FAIL 0
+- `tests/oidc_smoke.ps1`（真实 HTTP + 最小 IdP）→ PASS 19 / FAIL 0
 - 额外端到端（CSRF 419、config/src 403、三类型属性、过滤、CSV 往返、重复导入跳过、批量删除、跨库 404）→ PASS 12 / FAIL 0
+- OIDC 补充验证：白名单变更后旧会话立即失效、新名单内 sub 可登录（PASS 3）；密码与 OIDC 并存（PASS 5）；安装向导 OIDC 字段校验与回填（PASS 9）
 - 验证环境：本机 PHP 8.5.11 + MySQL 5.6.51（由 php-manager / mysql-manager 启动，验证后已关闭）
 
 **Journey log** —
@@ -27,6 +30,8 @@ commits: e56b986..fd60399
 - 真实缺陷 1：`Link::query` 复用了命名占位符 `:qtext`，PDO 原生预处理报 HY093；改用两个占位符修复。
 - 真实缺陷 2（审查发现）：管理页 GET 路由漏配 `admin` 中间件，导致未鉴权可读；已补中间件并加回归测试。
 - 真实缺陷 3（审查发现）：文本属性值被无条件 `str_replace('T',' ',...)` 破坏；改为仅 `date` 类型转换，并加回归测试。
+- 改造 4：单用户登录 —— 用户名与 `admin_users` 表整体移除，密码哈希移入 `config.php`；旧安装的哈希需手工迁移（不再读库）。
+- 改造 5：OIDC 登录 —— 自研零依赖 `Support\Jwt`（JWK→DER→PEM）与 `Support\Oidc`（发现文档/授权码/PKCE/token/claims 校验）；`allowed_subs` 白名单在安装向导配置，`Auth::check()` 每次复核以便配置变更即时生效。
 - 工具经验：PowerShell 5.1 的 `-MaximumRedirection 0` 抛异常且无 Response，应改用 `AllowAutoRedirect=$false`；双引号字符串中 `$var?` 会被当作变量名的一部分，应写 `${var}`；切勿用 `Get-Content`/`Set-Content` 往返处理中文 UTF-8 源文件（会破坏编码）。
 
 
@@ -64,7 +69,7 @@ commits: e56b986..fd60399
 │   ├── bootstrap.php        # 加载配置、注册自动加载、初始化 DB、路由
 │   ├── routes.php           # 路由表
 │   ├── support/             # Db Request Response Router Csrf Auth Validator View Log
-│   ├── models/              # Repository Attribute Option Link ApiKey AdminUser Setting
+│   ├── models/              # Repository Attribute Option Link ApiKey Setting
 │   ├── controllers/
 │   │   ├── api/             # ApiController + 各资源 Action
 │   │   └── web/             # 安装、登录、存储库、属性、链接、KEY 控制器
@@ -87,7 +92,7 @@ commits: e56b986..fd60399
 - `links(id PK, repository_id FK→repositories ON DELETE CASCADE, url VARCHAR(1500), url_hash CHAR(64), created_at, updated_at, UNIQUE(repository_id, url_hash))` — `url_hash` = sha256(规范化 url)。
 - `link_values(link_id FK→links ON DELETE CASCADE, attribute_id FK→attributes ON DELETE CASCADE, value_text TEXT NULL, value_date DATETIME NULL, value_num BIGINT NULL, PRIMARY KEY(link_id, attribute_id), INDEX(attribute_id, value_text(180)), INDEX(attribute_id, value_date), INDEX(attribute_id, value_num))`
 - `api_keys(id PK, repository_id FK→repositories ON DELETE CASCADE, name VARCHAR(100) NULL, key_hash CHAR(64) UNIQUE, key_prefix VARCHAR(16), permissions ENUM('read','write') DEFAULT 'read', expires_at DATETIME NULL, created_at DATETIME)`
-- `admin_users(id PK, username VARCHAR(50) UNIQUE, password_hash VARCHAR(255), created_at DATETIME)`
+- `admin_users(id PK, username VARCHAR(50) UNIQUE, password_hash VARCHAR(255), created_at DATETIME)`（已废弃：单用户系统不再建表，管理密码哈希改存 `config.php`）
 - `settings(`key` VARCHAR(50) PK, `value` TEXT)` — 存放 `schema_version`、`installed`。
 
 约定：
@@ -118,7 +123,7 @@ commits: e56b986..fd60399
 
 ### [S2.6] WebUI
 
-- 认证：单管理员账号（安装向导设置，`password_hash` 存储）+ 会话；所有修改请求带 CSRF token。
+- 认证：单用户，两种登录方式可独立或同时启用：密码登录（`password_hash` 存于 `config.php` 的 `admin.password_hash`，不入库）、OIDC 单点登录（见 S2.10）+ 会话；所有修改请求带 CSRF token。
 - 页面：
   - 首页：存储库网格（卡片），展示名称、描述、链接数、操作入口。
   - 存储库详情：链接列表（宽屏表格 / 窄屏卡片切换）、属性生成过滤控件 + 关键词搜索、分页（含预置每页条数 10/20/50/100，服务端白名单校验，切换后回到第 1 页）、多选。
@@ -130,21 +135,44 @@ commits: e56b986..fd60399
 
 ### [S2.7] 安装向导
 
-首次访问（无 `config.php` 或未安装）进入向导：填写 DB 主机/库名/账号/密码/端口 → 测试连接 → 执行 `schema.sql` 建表 → 设置管理员账号密码 → 生成 `config.php`（含 app_secret）与 `installed` 标记。已安装后访问向导重定向到登录。
+首次访问（无 `config.php` 或未安装）进入向导：填写 DB 主机/库名/账号/密码/端口 → 测试连接 → 执行 `schema.sql` 建表 → 设置登录方式（管理密码，可选启用 OIDC 并填 issuer/client/回调地址/允许登录的 sub）→ 生成 `config.php`（含 app_secret、`admin.password_hash`、可选 `oidc` 段）与 `installed` 标记。已安装后访问向导重定向到登录。单用户系统无需用户名；忘记密码时直接改 `config.php` 中的 `admin.password_hash`（或临时写 `admin.password` 明文）即可。OIDC 的 sub 白名单只在初始化时配置，之后改动需直接编辑 `config.php`。
+
+### [S2.10] OIDC 登录
+
+- 协议：Authorization Code + PKCE（S256），零第三方依赖（`openssl` 验签 + `curl`/stream 发请求）。
+- 流程：`GET /oidc/start` 生成 state/nonce/verifier 存会话 → 跳转 `authorization_endpoint` → 回调 `GET /oidc/callback` 校验 state → 用 code+verifier 换 token → 验签 `id_token` → 校验 `iss/aud/exp/nonce` → 校验 `sub` 白名单 → 建立会话。
+- 验签：支持 RS256/384/512、ES256/384/512；公钥从 `jwks_uri` 获取并按 `kid` 匹配（JWK→PEM 由 `Support\Jwt` 手工拼 DER）；`alg=none` 与 HS* 一律拒绝；JWKS 缓存 1 小时（`logs/cache`）。
+- 授权控制：`oidc.allowed_subs` 为白名单（精确匹配，大小写敏感），不在名单内的 sub 登录被拒绝并记录日志；白名单在初始化向导中填写。会话建立后每次 `Auth::check()` 都复核白名单，配置变更后旧会话立即失效。
+- 回调地址：优先用 `oidc.redirect_uri`；未配置时按当前请求（含 `X-Forwarded-Proto/Host`）推导 `https://host/oidc/callback`。
+- 配置（`config.php`）：
+  ```php
+  'oidc' => [
+      'enabled' => true,
+      'issuer' => 'https://auth.example.com',
+      'client_id' => '...',
+      'client_secret' => '...',
+      'redirect_uri' => 'https://dlm.example.com/oidc/callback',
+      'scope' => 'openid email profile',
+      'allowed_subs' => ['248289761001'],
+  ],
+  ```
+- 登录页：启用 OIDC 显示「使用 OIDC 登录」按钮；同时设置密码时两者并列，未设置密码时只显示 OIDC 按钮。
 
 ### [S2.8] 安全边界
 
 - 全部 SQL 走 PDO 预处理，禁止字符串拼接。
 - 输出统一 HTML 转义防 XSS。
 - 管理端 POST 全部校验 CSRF。
-- API token 存 sha256 哈希；管理员密码走 `password_hash`/`password_verify`。
+- API token 存 sha256 哈希；管理密码走 `password_hash`/`password_verify`，哈希保存在 `config.php`（受 `.htaccess` 保护，禁止 Web 直接访问）。
 - url 仅允许 http/https，避免 `javascript:` 等。
+- OIDC：state 与 nonce 一次性消费、PKCE 强制 S256、`id_token` 必须验签且校验 iss/aud/exp/nonce，`sub` 必须命中白名单；client_secret 只存 `config.php`。
 - `config.php` 与源码目录禁止直接访问。
 
 ### [S2.9] 测试边界
 
-- 单元级：类型校验、过滤构造、CSV 解析、url 规范化（可脚本化断言）。
+- 单元级：类型校验、过滤构造、CSV 解析、url 规范化（可脚本化断言）；JWT 验签（RS/ES 全算法、篡改、alg=none、kid 匹配）见 `tests/oidc_jwt.php`。
 - 集成级：通过本地 PHP 内置服务器 + MySQL 5.6 起服务，跑 HTTP 冒烟脚本验证安装向导、登录、CRUD、批量、过滤、CSV 导入导出、API 鉴权与越权、只读 KEY 拒绝写入。
+- OIDC 端到端：`tests/oidc_smoke.ps1` 配合一个最小 IdP（发现文档/JWKS/authorize/token + PKCE 校验），覆盖登录成功、sub 白名单拒绝、签名错误、nonce 不匹配、state 伪造。
 - 无 PHPUnit 依赖，使用自带的纯 PHP 测试脚本 + HTTP 冒烟脚本。
 
 ## [S3] Out of Scope
@@ -160,9 +188,9 @@ commits: e56b986..fd60399
 ## Tasks
 
 - [x] T1：项目骨架、.htaccess、config 生成、bootstrap、路由与 PDO 封装 — 验收：访问空配置重定向安装，访问已安装进入登录。 (covers: S2.2, S2.7)
-- [x] T2：schema.sql + 安装向导（连接测试、建表、建管理员、写 config） — 验收：向导跑完能登录。 (covers: S2.3, S2.7; depends: T1)
-- [x] T3：管理员会话认证 + CSRF + 登录页 — 验收：未登录访问管理页被重定向，登录后可访问。 (covers: S2.6, S2.8; depends: T2)
-- [x] T4：模型层 Repository/Attribute/Option/Link/LinkValue/ApiKey/AdminUser/Setting（含 EAV 写入与类型化读取、url 唯一） — 验收：脚本调用模型能完成 CRUD 且类型正确。 (covers: S2.3, S2.4; depends: T2)
+- [x] T2：schema.sql + 安装向导（连接测试、建表、设置管理密码写入 config） — 验收：向导跑完能登录。 (covers: S2.3, S2.7; depends: T1)
+- [x] T3：单用户密码会话认证 + CSRF + 登录页（无用户名，密码哈希存 config.php） — 验收：未登录访问管理页被重定向，登录后可访问。 (covers: S2.6, S2.8; depends: T2)
+- [x] T4：模型层 Repository/Attribute/Option/Link/LinkValue/ApiKey/Setting（含 EAV 写入与类型化读取、url 唯一） — 验收：脚本调用模型能完成 CRUD 且类型正确。 (covers: S2.3, S2.4; depends: T2)
 - [x] T5：存储库网格首页 + 存储库 CRUD — 验收：可增删改存储库并级联。 (covers: S2.6; depends: T3, T4)
 - [x] T6：属性管理（类型/必填/约束/可选值/排序） — 验收：受约束属性仅能选列表值。 (covers: S2.3, S2.6; depends: T4)
 - [x] T7：链接列表 + 过滤控件 + 关键词 + 分页排序 + 宽窄屏切换 — 验收：按属性过滤结果正确，窄屏为卡片。 (covers: S2.4, S2.6; depends: T4, T6)
@@ -174,3 +202,5 @@ commits: e56b986..fd60399
 - [x] T13：CSS/JS：响应式布局、深色模式、过滤控件、弹窗、多选交互 — 验收：桌面与移动端均可用，深浅色可切换。 (covers: S2.6; depends: T7)
 - [x] T14：验证：本地 PHP8.5 + MySQL5.6 起服务，跑单元脚本与 HTTP 冒烟脚本 — 验收：全部通过并记录命令与结果。 (covers: S2.9; depends: T1..T13)
 - [x] T15：链接列表每页条数切换（预置 10/20/50/100，服务端白名单，切换重置到第 1 页，保留过滤/搜索/排序参数） — 验收：切换后条数生效、选中项正确、非法值回落 20。 (covers: S2.6; depends: T7)
+- [x] T16：单用户登录改造：去掉用户名，密码哈希存 `config.php`（删除 `admin_users` 表与 AdminUser 模型） — 验收：登录页仅密码框，安装向导只收集密码。 (covers: S2.6, S2.7; depends: T3)
+- [x] T17：OIDC 登录（授权码 + PKCE S256、JWKS 验签、iss/aud/exp/nonce 校验、`allowed_subs` 白名单、初始化向导配置） — 验收：白名单内 sub 可登录，名单外 sub / 错签 / 错 nonce / 伪造 state 均被拒绝。 (covers: S2.10, S2.8; depends: T16)

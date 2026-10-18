@@ -37,6 +37,21 @@ final class Helpers
         return self::base() . '/public/' . ltrim($path, '/');
     }
 
+    /**
+     * 把站内路径拼成绝对 URL（用于 OIDC 回调等外部回跳地址）。
+     */
+    public static function absolute(string $path = '/'): string
+    {
+        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+        $scheme = $isHttps ? 'https' : 'http';
+        $host = (string) ($_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost');
+        if ($host === '') {
+            $host = 'localhost';
+        }
+        return $scheme . '://' . $host . self::url($path);
+    }
+
     public static function slugify(string $value): string
     {
         $value = trim($value);

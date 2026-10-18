@@ -13,6 +13,8 @@ $router->post('/install', [InstallController::class, 'run'], ['middleware' => 'c
 
 $router->get('/login', [AuthController::class, 'showLogin']);
 $router->post('/login', [AuthController::class, 'login'], ['middleware' => 'csrf']);
+$router->get('/oidc/start', [AuthController::class, 'oidcStart']);
+$router->get('/oidc/callback', [AuthController::class, 'oidcCallback']);
 $router->post('/logout', [AuthController::class, 'logout'], ['middleware' => 'csrf']);
 
 // WebUI 管理界面路由

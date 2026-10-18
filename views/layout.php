@@ -39,7 +39,6 @@ $isKeysNav = str_starts_with($navPath, '/keys');
     <div class="app-header-right">
         <button type="button" id="theme-toggle" class="btn btn-ghost" title="切换主题">跟随系统</button>
         <?php if (Auth::check()): ?>
-            <span class="who"><?= Helpers::e((string) ((Auth::user()['username'] ?? ''))) ?></span>
             <form method="post" action="<?= Helpers::url('/logout') ?>" class="inline-form">
                 <?= Csrf::field() ?>
                 <button type="submit" class="btn btn-ghost">退出</button>

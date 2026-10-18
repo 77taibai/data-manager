@@ -79,8 +79,6 @@ h2 { font-size: 1.1rem; margin: 1.2rem 0 .4rem; }
     flex-wrap: wrap;
 }
 
-.who { color: var(--text-muted); }
-
 .app-main {
     max-width: 1200px;
     margin: 0 auto;
@@ -164,6 +162,29 @@ input:focus, select:focus, textarea:focus {
 .btn-ghost:hover { background: var(--surface-2); }
 
 .btn-sm { padding: .25rem .55rem; font-size: .85rem; }
+
+.btn-block {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+    text-decoration: none;
+}
+
+.auth-divider {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    margin: 1rem 0;
+    color: var(--text-muted);
+    font-size: .85rem;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+    content: "";
+    flex: 1;
+    border-top: 1px solid var(--border);
+}
 
 .btn:disabled,
 .btn[disabled] {
