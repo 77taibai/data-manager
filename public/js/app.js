@@ -147,6 +147,9 @@
         document.querySelectorAll('[data-bulk-count]').forEach(function (el) {
             el.textContent = String(count);
         });
+        document.querySelectorAll('[data-bulk-submit]').forEach(function (btn) {
+            btn.disabled = count === 0;
+        });
     }
 
     function toggleBulkAttr() {

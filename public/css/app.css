@@ -165,6 +165,21 @@ input:focus, select:focus, textarea:focus {
 
 .btn-sm { padding: .25rem .55rem; font-size: .85rem; }
 
+.btn:disabled,
+.btn[disabled] {
+    opacity: .55;
+    cursor: not-allowed;
+}
+
+.btn:disabled:hover,
+.btn[disabled]:hover { background: var(--surface-2); }
+
+.btn-primary:disabled:hover,
+.btn-primary[disabled]:hover { background: var(--primary); }
+
+.btn-danger:disabled:hover,
+.btn-danger[disabled]:hover { background: var(--danger); }
+
 .flash {
     padding: .6rem .8rem;
     border-radius: 8px;
@@ -337,17 +352,53 @@ code {
 .bulk-bar {
     display: flex;
     align-items: center;
-    gap: .6rem;
+    gap: .5rem;
     flex-wrap: wrap;
-    margin: 1rem 0;
-    padding: .6rem .8rem;
+    margin: 0;
 }
 
 .bulk-bar select,
-.bulk-bar input { width: auto; min-width: 120px; }
+.bulk-bar input {
+    width: auto;
+    min-width: 0;
+    margin-top: 0;
+    padding: .45rem .6rem;
+    font-size: inherit;
+    line-height: 1.5;
+    background: var(--surface-2);
+}
 
-.bulk-count { color: var(--text-muted); }
-.bulk-attr { display: inline-flex; gap: .4rem; flex-wrap: wrap; }
+.bulk-bar select { min-width: 118px; }
+.bulk-bar input { min-width: 150px; }
+
+.bulk-count {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    padding: .45rem 0;
+    color: var(--text-muted);
+    font-size: .9rem;
+    white-space: nowrap;
+}
+
+.bulk-count strong { color: var(--text); font-weight: 700; }
+
+.bulk-attr { display: inline-flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+
+.page-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .5rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+.page-actions .bulk-bar {
+    padding-left: .6rem;
+    border-left: 1px solid color-mix(in srgb, var(--text-muted) 45%, var(--border));
+}
 
 .empty-state { color: var(--text-muted); text-align: center; padding: 2rem 1rem; }
 
@@ -404,4 +455,17 @@ code {
     .form-grid { grid-template-columns: 1fr; }
     .filters .field { min-width: 100%; }
     .size-range { width: 100%; }
+
+    .page-head .page-actions { width: 100%; }
+
+    .page-actions .bulk-bar {
+        flex: 1 0 100%;
+        padding-left: 0;
+        padding-top: .6rem;
+        border-left: 0;
+        border-top: 1px solid var(--border);
+    }
+
+    .bulk-bar select,
+    .bulk-bar input { flex: 1 1 auto; min-width: 0; }
 }

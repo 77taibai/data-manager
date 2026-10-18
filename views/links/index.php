@@ -56,11 +56,29 @@ $dateInputValue = static function (string $value): string {
 <div class="page-head">
     <h1><?= Helpers::e((string) ($repo['name'] ?? '')) ?></h1>
     <span class="badge">共 <?= $total ?> 条</span>
-    <div class="spacer"></div>
-    <button type="button" class="btn btn-primary" data-link-new>新增链接</button>
-    <a class="btn" href="<?= Helpers::url($basePath . '/import') ?>">批量导入</a>
-    <a class="btn" href="<?= Helpers::url($basePath . '/export') ?>">导出 CSV</a>
-    <a class="btn" href="<?= Helpers::url($basePath . '/attributes') ?>">属性</a>
+    <div class="page-actions">
+        <button type="button" class="btn btn-primary" data-link-new>新增链接</button>
+        <a class="btn" href="<?= Helpers::url($basePath . '/import') ?>">批量导入</a>
+        <a class="btn" href="<?= Helpers::url($basePath . '/export') ?>">全部导出</a>
+        <a class="btn" href="<?= Helpers::url($basePath . '/attributes') ?>">属性</a>
+        <form id="bulk-form" class="bulk-bar" method="post" action="<?= Helpers::url($basePath . '/links/bulk') ?>">
+            <?= Csrf::field() ?>
+            <span class="bulk-count">已选 <strong data-bulk-count>0</strong> 项</span>
+            <select name="action" data-bulk-action>
+                <option value="delete">批量删除</option>
+                <option value="set_attr">批量修改属性</option>
+            </select>
+            <span data-bulk-attr hidden class="bulk-attr">
+                <select name="attr_key">
+                    <?php foreach ($attributes as $attr): ?>
+                        <option value="<?= Helpers::e((string) $attr['key']) ?>"><?= Helpers::e((string) $attr['label']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <input type="text" name="attr_value" placeholder="新值（留空清除）">
+            </span>
+            <button type="submit" class="btn btn-danger" data-bulk-submit disabled>执行</button>
+        </form>
+    </div>
 </div>
 
 <form method="get" action="<?= Helpers::url($basePath) ?>" class="filters card">
@@ -99,24 +117,6 @@ $dateInputValue = static function (string $value): string {
         <button type="submit" class="btn btn-primary">筛选</button>
         <a class="btn" href="<?= Helpers::url($basePath) ?>">重置</a>
     </div>
-</form>
-
-<form id="bulk-form" class="bulk-bar card" method="post" action="<?= Helpers::url($basePath . '/links/bulk') ?>">
-    <?= Csrf::field() ?>
-    <span class="bulk-count">已选 <strong data-bulk-count>0</strong> 项</span>
-    <select name="action" data-bulk-action>
-        <option value="delete">批量删除</option>
-        <option value="set_attr">批量修改属性</option>
-    </select>
-    <span data-bulk-attr hidden class="bulk-attr">
-        <select name="attr_key">
-            <?php foreach ($attributes as $attr): ?>
-                <option value="<?= Helpers::e((string) $attr['key']) ?>"><?= Helpers::e((string) $attr['label']) ?></option>
-            <?php endforeach; ?>
-        </select>
-        <input type="text" name="attr_value" placeholder="新值（留空清除）">
-    </span>
-    <button type="submit" class="btn btn-danger">执行</button>
 </form>
 
 <?php if ($items === []): ?>
