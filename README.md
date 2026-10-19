@@ -513,7 +513,7 @@ MySQL 5.6 兼容，InnoDB + `utf8mb4_unicode_ci`，索引前缀按 180 字符设
 | `api_keys` | `id`, `repository_id` (FK CASCADE), `name`, `key_hash` CHAR(64) UNIQUE, `key_prefix`, `permissions` ENUM('read','write'), `expires_at` | API 密钥，只存哈希 |
 | `settings` | `key` (PK), `value` | `schema_version`、`installed` 等 |
 
-**URL 唯一性**：`Helpers::urlHash()` 先做规范化（scheme / host 小写，保留 port / path / query / fragment），再取 sha256，因此 `HTTP://Example.COM/Path` 与 `http://example.com/Path` 视为同一 URL。
+**URL 唯一性**：`Helpers::urlHash()` 先做规范化再取 sha256。http/https 规范化 scheme 与 host 小写、保留 port / path / query / fragment，因此 `HTTP://Example.COM/Path` 与 `http://example.com/Path` 视为同一 URL；ed2k 整串转小写；magnet 解析 `&` 参数、键与值 urldecode 后按 `key` / `value` 排序重建，`xt` 的哈希部分转小写，因此参数顺序不同或 btih 大小写不同都视为同一链接。
 
 ---
 
@@ -569,7 +569,7 @@ return [
 - **会话**：`HttpOnly` + `SameSite=Lax`，HTTPS 下 `Secure`；登录成功与 OIDC 登录均 `session_regenerate_id(true)` 防固定攻击
 - **密码**：`password_hash()` / `password_verify()`，哈希存于受保护的 `config.php`，不入库
 - **APIKEY**：`dlm_` + 40 位 hex，库内只存 `sha256` 哈希与前 12 位前缀；支持过期时间；吊销即删除记录
-- **URL 白名单**：仅允许 `http` / `https`，拒绝 `javascript:`、`ftp:` 等
+- **URL 白名单**：下载链接仅允许 `http` / `https` / `ed2k` / `magnet`，拒绝 `javascript:`、`ftp:`、`data:` 等；ed2k 必须匹配 `ed2k://|file|名称|大小|32 位哈希|/`（或 server 形式），magnet 必须带合法的 `xt=urn:btih:...`（40 位 hex 或 32 位 base32）。OIDC 的 issuer / redirect_uri 仍只允许 `http` / `https`
 - **越库隔离**：所有模型方法都带 `repository_id` 条件，API KEY 只能操作其绑定存储库；跨库 ID 返回 404
 - **OIDC**：state / nonce 一次性消费，强制 PKCE S256，`id_token` 必须验签并校验 `iss` / `aud` / `azp` / `exp` / `iat` / `nonce`，`sub` 必须命中白名单；`client_secret` 只存 `config.php`
 - **目录保护**：`config.php`、`src/`、`views/`、`docs/`、`logs/`、`.git/` 均禁止直接 Web 访问；关闭目录索引

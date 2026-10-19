@@ -206,7 +206,7 @@ final class InstallController
     private function validateOidc(array $oidc): array
     {
         $errors = [];
-        if ($oidc['issuer'] === '' || !Helpers::isValidUrl($oidc['issuer'])) {
+        if ($oidc['issuer'] === '' || !Helpers::isHttpUrl($oidc['issuer'])) {
             $errors[] = 'OIDC Issuer 必须是合法的 http/https 地址';
         }
         if ($oidc['client_id'] === '') {
@@ -215,7 +215,7 @@ final class InstallController
         if ($oidc['client_secret'] === '') {
             $errors[] = 'OIDC Client Secret 为必填项';
         }
-        if ($oidc['redirect_uri'] !== '' && !Helpers::isValidUrl($oidc['redirect_uri'])) {
+        if ($oidc['redirect_uri'] !== '' && !Helpers::isHttpUrl($oidc['redirect_uri'])) {
             $errors[] = 'OIDC 回调地址必须是合法的 http/https 地址';
         }
         if ($oidc['allowed_subs'] === []) {

@@ -192,7 +192,7 @@ if ($q !== '') {
                 ?>
                 <tr>
                     <td class="col-check"><input type="checkbox" name="ids[]" value="<?= $linkId ?>" data-row-check form="bulk-form"></td>
-                    <td class="col-url url-cell"><a href="<?= Helpers::e((string) $link['url']) ?>" target="_blank" rel="noopener" title="<?= Helpers::e((string) $link['url']) ?>"><?= Helpers::e((string) $link['url']) ?></a></td>
+                    <td class="col-url url-cell"><a href="<?= Helpers::e((string) $link['url']) ?>"<?= Helpers::isHttpUrl((string) $link['url']) ? ' target="_blank" rel="noopener"' : '' ?> title="<?= Helpers::e((string) $link['url']) ?>"><?= Helpers::e((string) $link['url']) ?></a></td>
                     <?php foreach ($attributes as $attr): ?>
                         <?php
                         $k = (string) $attr['key'];
@@ -239,7 +239,7 @@ if ($q !== '') {
             <div class="link-card">
                 <div class="link-card-head">
                     <input type="checkbox" name="ids[]" value="<?= $linkId ?>" data-row-check form="bulk-form">
-                    <a class="url-cell" href="<?= Helpers::e((string) $link['url']) ?>" target="_blank" rel="noopener"><?= Helpers::e((string) $link['url']) ?></a>
+                    <a class="url-cell" href="<?= Helpers::e((string) $link['url']) ?>"<?= Helpers::isHttpUrl((string) $link['url']) ? ' target="_blank" rel="noopener"' : '' ?>><?= Helpers::e((string) $link['url']) ?></a>
                 </div>
                 <dl>
                     <?php foreach ($attributes as $attr): ?>
@@ -291,7 +291,7 @@ if ($q !== '') {
               data-action-edit="<?= Helpers::url($basePath . '/links/') ?>">
             <?= Csrf::field() ?>
             <label>下载 URL <span class="req">*</span>
-                <input type="url" name="url" required placeholder="https://example.com/file.zip">
+                <input type="text" name="url" required placeholder="https://example.com/file.zip 或 ed2k://|file|...|/ 或 magnet:?xt=urn:btih:...">
             </label>
             <?php foreach ($attributes as $attr): ?>
                 <?php

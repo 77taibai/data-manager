@@ -95,7 +95,7 @@ Authorization: Bearer dlm_3f8a1c9e5b7d2f4a6c8e0b1d3f5a7c9e2b4d6f8a
 ```json
 {
   "code": 4220,
-  "message": "版本号为必填项；下载 URL 无效，必须是 http 或 https 链接",
+  "message": "版本号为必填项；下载 URL 无效，请检查 http/https 地址格式",
   "data": null
 }
 ```
@@ -148,7 +148,7 @@ Authorization: Bearer dlm_3f8a1c9e5b7d2f4a6c8e0b1d3f5a7c9e2b4d6f8a
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | int | 链接 ID（在所属存储库内唯一） |
-| `url` | string | 下载地址，`http` / `https`，同库唯一 |
+| `url` | string | 下载地址，`http` / `https` / `ed2k` / `magnet`，同库唯一 |
 | `created_at` | string | `YYYY-MM-DD HH:MM:SS`（服务器时区，默认 `Asia/Shanghai`） |
 | `updated_at` | string | 同上 |
 | `attributes` | object | 以属性 `key` 为键的取值映射；**该库的所有属性都会出现**，未设置值为 `null` |
@@ -350,7 +350,7 @@ Content-Type: application/json
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `url` | string | 是 | `http` / `https`，同库唯一 |
+| `url` | string | 是 | `http` / `https` / `ed2k` / `magnet`，同库唯一 |
 | `attributes` | object | 否* | 以属性 `key` 为键的取值；`required=true` 的属性必须提供 |
 
 \* 若该库存在必填属性，则 `attributes` 必须包含它们。
@@ -424,7 +424,7 @@ Content-Type: application/json
         "index": 1,
         "ok": false,
         "url": "not-a-valid-url",
-        "errors": ["下载 URL 无效，必须是 http 或 https 链接"]
+        "errors": ["下载 URL 无效，必须以 http://、https://、ed2k:// 或 magnet:? 开头"]
       }
     ]
   }
@@ -518,7 +518,7 @@ Content-Type: application/json
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `url` | string | 否 | 不传则保持原值；传了则必须是合法 http/https 且同库不重复 |
+| `url` | string | 否 | 不传则保持原值；传了则必须是合法 http/https/ed2k/magnet 链接且同库不重复 |
 | `attributes` | object | 否 | 只更新出现的键；值为 `null` 或空串表示**删除**该属性值 |
 
 > **必填属性在更新时的行为**：`required=true` 的属性若**不出现在** `attributes` 中，则跳过校验、保持原值；若**显式传 `null` 或空串**，会返回 **422**（`<label>为必填项`）。因此必填属性只能改成另一个合法值，不能清空。
@@ -792,7 +792,7 @@ print(r.status_code, body["code"], body["message"])
 - **没有单条更新的 `PUT`**，只有合并语义的 `PATCH`。
 - **没有批量删除 / 批量更新接口**；批量仅支持创建。
 - **`page_size` 上限 200**；需要导出全量请循环分页（`total` 字段可用于计算页数）。
-- **`url` 唯一性按规范化结果判定**（scheme/host 小写后取 sha256），`HTTP://Example.COM/a` 与 `http://example.com/a` 视为重复。
+- **`url` 唯一性按规范化结果判定**（http/https：scheme/host 小写；ed2k：整串小写；magnet：参数排序且 `xt` 哈希小写，之后取 sha256），`HTTP://Example.COM/a` 与 `http://example.com/a` 视为重复，`magnet:?xt=urn:btih:ABC&dn=a` 与 `magnet:?dn=a&xt=urn:btih:abc` 同样视为重复。
 - **`attributes` 中出现的未知 `key` 会导致整条请求 422 失败**，不会静默忽略。
 - **日期无时区概念**：按服务器配置的时区（默认 `Asia/Shanghai`）存储与返回 `DATETIME`。
 - **API 请求的 404/500 返回 JSON**；页面请求返回 HTML。可通过路径前缀 `/v1` 区分。

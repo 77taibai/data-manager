@@ -119,7 +119,7 @@ commits: e56b986..fd60399
   - `POST /v1/links` → body 为对象=新增单条；body 为数组=批量新增，返回逐条结果明细。
   - `GET /v1/links/{id}`、`PATCH /v1/links/{id}`（局部更新，未传属性保持；传 `null` 清除）、`DELETE /v1/links/{id}`。
 - 只读 KEY 对写方法返回 403。
-- 校验：`url` 必须为合法 http/https；受约束属性值必须属于选项；必填属性必须提供；类型必须匹配。
+- 校验：`url` 必须为合法 http/https/ed2k/magnet；受约束属性值必须属于选项；必填属性必须提供；类型必须匹配。
 
 ### [S2.6] WebUI
 
@@ -164,7 +164,7 @@ commits: e56b986..fd60399
 - 输出统一 HTML 转义防 XSS。
 - 管理端 POST 全部校验 CSRF。
 - API token 存 sha256 哈希；管理密码走 `password_hash`/`password_verify`，哈希保存在 `config.php`（受 `.htaccess` 保护，禁止 Web 直接访问）。
-- url 仅允许 http/https，避免 `javascript:` 等。
+- url 仅允许 http/https/ed2k/magnet，避免 `javascript:` 等；OIDC 的 issuer / redirect_uri 仍只允许 http/https。
 - OIDC：state 与 nonce 一次性消费、PKCE 强制 S256、`id_token` 必须验签且校验 iss/aud/exp/nonce，`sub` 必须命中白名单；client_secret 只存 `config.php`。
 - `config.php` 与源码目录禁止直接访问。
 

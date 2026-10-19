@@ -33,14 +33,30 @@ check('formatBytes 0', Helpers::formatBytes(0) === '0 B');
 check('formatBytes 1536', Helpers::formatBytes(1536) === '1.5 KB');
 check('formatBytes 1MB', Helpers::formatBytes(1048576) === '1 MB');
 
-check('isValidUrl http', Helpers::isValidUrl('http://example.com/a'));
-check('isValidUrl https', Helpers::isValidUrl('https://example.com/a?b=1'));
-check('isValidUrl javascript 拒绝', Helpers::isValidUrl('javascript:alert(1)') === false);
-check('isValidUrl ftp 拒绝', Helpers::isValidUrl('ftp://example.com/a') === false);
-check('isValidUrl 文本拒绝', Helpers::isValidUrl('not a url') === false);
+check('isDownloadUrl http', Helpers::isDownloadUrl('http://example.com/a'));
+check('isDownloadUrl https', Helpers::isDownloadUrl('https://example.com/a?b=1'));
+check('isDownloadUrl ed2k file', Helpers::isDownloadUrl('ed2k://|file|a.zip|104857600|31D6CFE0D16AE931B73C59D7E0C089C0|/'));
+check('isDownloadUrl ed2k aich', Helpers::isDownloadUrl('ed2k://|file|a.zip|104857600|31D6CFE0D16AE931B73C59D7E0C089C0|h=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|/'));
+check('isDownloadUrl ed2k server', Helpers::isDownloadUrl('ed2k://|server|192.168.1.1|4661|/'));
+check('isDownloadUrl magnet', Helpers::isDownloadUrl('magnet:?xt=urn:btih:31d6cfe0d16ae931b73c59d7e0c089c0deadbeef&dn=a.zip'));
+check('isDownloadUrl magnet base32', Helpers::isDownloadUrl('magnet:?xt=urn:btih:MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43U'));
+check('isDownloadUrl javascript 拒绝', Helpers::isDownloadUrl('javascript:alert(1)') === false);
+check('isDownloadUrl ftp 拒绝', Helpers::isDownloadUrl('ftp://example.com/a') === false);
+check('isDownloadUrl data 拒绝', Helpers::isDownloadUrl('data:text/html,hi') === false);
+check('isDownloadUrl ed2k 非法哈希拒绝', Helpers::isDownloadUrl('ed2k://|file|a.zip|100|not-a-hash|/') === false);
+check('isDownloadUrl magnet 缺 xt 拒绝', Helpers::isDownloadUrl('magnet:?dn=a.zip') === false);
+check('isDownloadUrl magnet 非法哈希拒绝', Helpers::isDownloadUrl('magnet:?xt=urn:btih:xyz') === false);
+check('isDownloadUrl 文本拒绝', Helpers::isDownloadUrl('not a url') === false);
+
+check('isHttpUrl http', Helpers::isHttpUrl('http://example.com/a'));
+check('isHttpUrl magnet 拒绝', Helpers::isHttpUrl('magnet:?xt=urn:btih:31d6cfe0d16ae931b73c59d7e0c089c0deadbeef') === false);
 
 check('normalizeUrl 小写主机', Helpers::normalizeUrl('HTTP://Example.COM/Path') === 'http://example.com/Path');
+check('normalizeUrl ed2k 小写', Helpers::normalizeUrl('ED2K://|FILE|A.ZIP|100|31D6CFE0D16AE931B73C59D7E0C089C0|/') === 'ed2k://|file|a.zip|100|31d6cfe0d16ae931b73c59d7e0c089c0|/');
+check('normalizeUrl magnet 参数排序', Helpers::normalizeUrl('magnet:?dn=a.zip&xt=urn:btih:ABCD') === Helpers::normalizeUrl('magnet:?xt=urn:btih:abcd&dn=a.zip'));
 check('urlHash 稳定', Helpers::urlHash('https://example.com/a') === Helpers::urlHash('https://example.com/a'));
+check('urlHash ed2k 稳定', Helpers::urlHash('ed2k://|file|a.zip|100|31D6CFE0D16AE931B73C59D7E0C089C0|/') === Helpers::urlHash('ed2k://|file|a.zip|100|31d6cfe0d16ae931b73c59d7e0c089c0|/'));
+check('urlHash magnet 稳定', Helpers::urlHash('magnet:?xt=urn:btih:ABCD&dn=a.zip') === Helpers::urlHash('magnet:?dn=a.zip&xt=urn:btih:abcd'));
 
 check('parseDate 仅日期', ValueCodec::parseDate('2026-01-01') === '2026-01-01 00:00:00');
 check('parseDate 到分钟', ValueCodec::parseDate('2026-01-01 12:30') === '2026-01-01 12:30:00');

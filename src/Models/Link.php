@@ -210,8 +210,9 @@ final class Link
     public static function create(int $repositoryId, string $url, array $valuesByKey): array
     {
         $url = trim($url);
-        if (!Helpers::isValidUrl($url)) {
-            return ['id' => null, 'errors' => ['下载 URL 无效，必须是 http 或 https 链接']];
+        $urlError = Helpers::downloadUrlError($url);
+        if ($urlError !== null) {
+            return ['id' => null, 'errors' => [$urlError]];
         }
         $validated = self::validateValues($repositoryId, $valuesByKey, false);
         if ($validated['errors'] !== []) {
@@ -248,8 +249,9 @@ final class Link
         $newUrl = null;
         if ($url !== null) {
             $url = trim($url);
-            if (!Helpers::isValidUrl($url)) {
-                $errors[] = '下载 URL 无效，必须是 http 或 https 链接';
+            $urlError = Helpers::downloadUrlError($url);
+            if ($urlError !== null) {
+                $errors[] = $urlError;
             } elseif (self::existsUrl($repositoryId, $url, $id)) {
                 $errors[] = '该存储库中已存在相同的下载 URL';
             } else {

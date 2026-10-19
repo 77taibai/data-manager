@@ -329,8 +329,9 @@ final class LinkController
             }
 
             $errors = [];
-            if (!Helpers::isValidUrl($url)) {
-                $errors[] = '下载 URL 无效';
+            $urlError = Helpers::downloadUrlError($url);
+            if ($urlError !== null) {
+                $errors[] = $urlError;
             } elseif (Link::existsUrl($repositoryId, $url)) {
                 $errors[] = '该 URL 已存在';
             }
@@ -436,7 +437,7 @@ final class LinkController
             }
 
             $reason = implode('；', $result['errors']);
-            $isSkip = !Helpers::isValidUrl($url) || str_contains($reason, '已存在');
+            $isSkip = Helpers::downloadUrlError($url) !== null || str_contains($reason, '已存在');
             if ($isSkip) {
                 $skipped++;
             } else {
