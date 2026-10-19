@@ -890,3 +890,197 @@
 
     window.DLM.selectsReady = true;
 })();
+
+/* ============================================================
+ * 自定义文件选择控件
+ * ------------------------------------------------------------
+ * 渐进增强：保留原生 <input type="file"> 作为真正的表单控件
+ * （表单提交 / FormData 读取均不受影响），只在其上方渲染与站内
+ * UI 一致的触发按钮、文件名显示与清除操作。
+ * ============================================================ */
+(function () {
+    'use strict';
+
+    if (window.DLM && window.DLM.filesReady) { return; }
+
+    var SELECTOR = 'input[type="file"]:not([data-native-file])';
+    var instances = [];
+
+    function baseName(value) {
+        var parts = String(value).split(/[\\/]/);
+        return parts[parts.length - 1] || '';
+    }
+
+    function FileField(input) {
+        var self = this;
+        self.input = input;
+        self.picking = false;
+
+        var wrap = document.createElement('div');
+        wrap.className = 'dlm-file';
+
+        var trigger = document.createElement('span');
+        trigger.className = 'dlm-file-trigger';
+        trigger.setAttribute('role', 'button');
+        trigger.setAttribute('tabindex', '0');
+        trigger.innerHTML = '<svg class="dlm-file-icon" width="15" height="15" viewBox="0 0 16 16"'
+            + ' fill="none" aria-hidden="true">'
+            + '<path d="M8 10.5V2.6M8 2.6 5 5.6M8 2.6l3 3" stroke="currentColor"'
+            + ' stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>'
+            + '<path d="M2.6 10.4v1.9c0 .7.5 1.2 1.2 1.2h8.4c.7 0 1.2-.5 1.2-1.2v-1.9"'
+            + ' stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>'
+            + '<span class="dlm-file-label">选择文件</span>';
+
+        var name = document.createElement('span');
+        name.className = 'dlm-file-name';
+
+        var clear = document.createElement('button');
+        clear.type = 'button';
+        clear.className = 'dlm-file-clear';
+        clear.setAttribute('aria-label', '清除已选文件');
+        clear.innerHTML = '&times;';
+        clear.hidden = true;
+
+        input.parentNode.insertBefore(wrap, input);
+        wrap.appendChild(trigger);
+        wrap.appendChild(name);
+        wrap.appendChild(clear);
+        wrap.appendChild(input);
+
+        input.classList.add('dlm-file-native');
+
+        self.wrap = wrap;
+        self.trigger = trigger;
+        self.nameEl = name;
+        self.clearEl = clear;
+        self.labelEl = trigger.querySelector('.dlm-file-label');
+
+        self.sync();
+
+        // 阻止 <label> 的默认转发，否则会连续弹出两次文件对话框
+        // 统一入口：只在用户真实交互中调用，且带重入保护。
+        // 注意：input.click() 派发的 click 事件会冒泡回 wrap，若不拦下会再次
+        // 进入本函数，并在 preventDefault 后取消掉刚打开的文件对话框。
+        function openPicker() {
+            if (input.disabled || self.picking) { return; }
+            self.picking = true;
+            try {
+                input.click();
+            } finally {
+                self.picking = false;
+            }
+        }
+
+        trigger.addEventListener('click', function (event) {
+            event.preventDefault();
+            openPicker();
+        });
+
+        // 点击整行（除清除按钮外）也能打开文件选择器
+        wrap.addEventListener('click', function (event) {
+            // 来自原生 input 自身的事件直接放行，避免拦截它打开的对话框
+            if (event.target === input) { return; }
+            if (event.target.closest('.dlm-file-clear')) { return; }
+            if (event.target.closest('.dlm-file-trigger')) { return; }
+            event.preventDefault();
+            openPicker();
+        });
+
+        trigger.addEventListener('keydown', function (event) {
+            if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') { return; }
+            event.preventDefault();
+            openPicker();
+        });
+
+        clear.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            try { input.value = ''; } catch (e) { return; }
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            trigger.focus();
+        });
+
+        input.addEventListener('change', function () { self.sync(); });
+        input.addEventListener('focus', function () { wrap.classList.add('is-focus'); });
+        input.addEventListener('blur', function () { wrap.classList.remove('is-focus'); });
+
+        if (input.disabled) {
+            wrap.classList.add('is-disabled');
+        }
+
+        self.observer = null;
+        if (window.MutationObserver) {
+            self.observer = new MutationObserver(function () { self.sync(); });
+            self.observer.observe(input, { attributes: true, attributeFilter: ['disabled'] });
+        }
+    }
+
+    FileField.prototype.sync = function () {
+        var self = this;
+        var files = self.input.files;
+        var names = [];
+
+        if (files && files.length) {
+            for (var i = 0; i < files.length; i++) { names.push(files[i].name); }
+        } else if (self.input.value) {
+            names.push(baseName(self.input.value));
+        }
+
+        if (names.length) {
+            var text = names.join('、');
+            self.nameEl.textContent = text;
+            self.nameEl.title = text;
+            self.nameEl.classList.add('is-set');
+            self.clearEl.hidden = false;
+            self.labelEl.textContent = '更换文件';
+        } else {
+            self.nameEl.textContent = '未选择文件';
+            self.nameEl.removeAttribute('title');
+            self.nameEl.classList.remove('is-set');
+            self.clearEl.hidden = true;
+            self.labelEl.textContent = '选择文件';
+        }
+
+        if (self.input.disabled) {
+            self.wrap.classList.add('is-disabled');
+        } else {
+            self.wrap.classList.remove('is-disabled');
+        }
+    };
+
+    function enhance(root) {
+        var scope = root || document;
+        var nodes = scope.querySelectorAll(SELECTOR);
+        for (var i = 0; i < nodes.length; i++) {
+            var input = nodes[i];
+            if (input.classList.contains('dlm-file-native')) { continue; }
+            if (input.dataset.dlmFile === '1') { continue; }
+            input.dataset.dlmFile = '1';
+            instances.push(new FileField(input));
+        }
+    }
+
+    function syncAll() {
+        instances.forEach(function (inst) {
+            if (inst.input.isConnected === false) { return; }
+            inst.sync();
+        });
+    }
+
+    document.addEventListener('reset', function (event) {
+        if (!event.target || !event.target.querySelectorAll) { return; }
+        window.setTimeout(syncAll, 0);
+    }, true);
+
+    window.DLM = window.DLM || {};
+    window.DLM.enhanceFiles = enhance;
+    window.DLM.syncFiles = syncAll;
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () { enhance(); });
+    } else {
+        enhance();
+    }
+
+    window.DLM.filesReady = true;
+})();

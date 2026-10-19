@@ -14,6 +14,7 @@
     --warning: #d97706;
     --radius: 10px;
     --shadow: 0 1px 3px rgba(0, 0, 0, .08), 0 1px 2px rgba(0, 0, 0, .06);
+    --pin-shadow: rgba(15, 23, 42, .18);
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
@@ -32,6 +33,7 @@ html[data-theme="dark"] {
     --success: #4ade80;
     --warning: #fbbf24;
     --shadow: 0 1px 3px rgba(0, 0, 0, .5);
+    --pin-shadow: rgba(0, 0, 0, .55);
 }
 
 * { box-sizing: border-box; }
@@ -221,6 +223,13 @@ input:focus, select:focus, textarea:focus {
     padding: 1rem;
 }
 
+/* 相邻卡片之间保留垂直间距，避免多张卡片直接贴合 */
+.card + .card { margin-top: 1rem; }
+
+/* 卡片内首个标题不额外撑开顶部留白 */
+.card > :first-child { margin-top: 0; }
+
+
 .page-head {
     display: flex;
     align-items: center;
@@ -236,6 +245,10 @@ input:focus, select:focus, textarea:focus {
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: 1rem;
 }
+
+/* 栅格内的卡片间距由 gap 控制，抵消相邻卡片的额外上边距 */
+.grid > .card + .card { margin-top: 0; }
+
 
 .repo-card { display: flex; flex-direction: column; gap: .5rem; }
 .repo-card h3 { margin: 0; }
@@ -260,6 +273,99 @@ table.data-table th, table.data-table td {
 table.data-table th { color: var(--text-muted); font-weight: 600; white-space: nowrap; }
 
 .url-cell { word-break: break-all; font-family: var(--mono); font-size: .85rem; }
+
+/* ===== 链接表格：横向滚动 + 列宽约束 + 右侧操作列固定 ===== */
+.table-wrap {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+}
+
+.links-table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+table.links-table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+/* 用内阴影绘制分隔线，避免 sticky 单元格边框在横向滚动时丢失 */
+table.links-table th,
+table.links-table td {
+    border-bottom: 0;
+    box-shadow: inset 0 -1px 0 var(--border);
+}
+
+table.links-table tbody tr:last-child > * { box-shadow: none; }
+
+/* 每列内容约束：块级容器承载最小 / 最大宽度，超出以省略号截断 */
+.links-table .col-check { width: 44px; min-width: 44px; max-width: 44px; }
+.links-table .col-check input { width: auto; margin: 0; }
+
+.links-table .col-url a {
+    display: block;
+    min-width: 200px;
+    max-width: 380px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.links-table .col-attr {
+    min-width: 110px;
+    max-width: 230px;
+    white-space: nowrap;
+}
+
+.links-table .col-attr .cell-clip {
+    display: block;
+    min-width: 110px;
+    max-width: 230px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.links-table thead th.col-attr { white-space: normal; }
+
+/* 右侧操作列：固定宽度 + 吸附在右侧 */
+.links-table .col-actions {
+    position: sticky;
+    right: 0;
+    width: 150px;
+    min-width: 150px;
+    max-width: 150px;
+    background: var(--surface);
+    box-shadow: inset 1px 0 0 var(--border), inset 0 -1px 0 var(--border);
+    z-index: 1;
+}
+
+/* 吸附列左侧的柔和投影：随列一起移动，制造“浮在内容之上”的层次感 */
+.links-table .col-actions::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -16px;
+    width: 16px;
+    pointer-events: none;
+    background: linear-gradient(
+        to right,
+        transparent 0%,
+        color-mix(in srgb, var(--pin-shadow) 30%, transparent) 40%,
+        color-mix(in srgb, var(--pin-shadow) 70%, transparent) 75%,
+        var(--pin-shadow) 100%
+    );
+}
+
+table.links-table thead .col-actions { z-index: 2; }
+
+table.links-table tbody tr:last-child .col-actions { box-shadow: inset 1px 0 0 var(--border); }
+
+.links-table .col-actions .row-actions { flex-wrap: nowrap; }
 
 .pagination { display: flex; gap: .4rem; align-items: center; margin-top: 1rem; flex-wrap: wrap; }
 
@@ -752,4 +858,152 @@ html[data-theme="dark"] .dlm-select-menu {
 .page-size .dlm-select-trigger {
     padding: .25rem .45rem;
     font-size: .85rem;
+}
+
+/* ===== 文件选择控件 ===== */
+
+/* 未启用 JS 时的原生外观兜底 */
+input[type="file"] {
+    width: 100%;
+    margin-top: .35rem;
+    padding: .3rem;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font: inherit;
+    font-size: .9rem;
+    cursor: pointer;
+}
+
+input[type="file"]::file-selector-button {
+    margin-right: .6rem;
+    padding: .4rem .8rem;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font: inherit;
+    font-size: .9rem;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease;
+}
+
+input[type="file"]::file-selector-button:hover {
+    background: var(--border);
+}
+
+/* 渐进增强后的自定义外观 */
+.dlm-file {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    margin-top: .35rem;
+    padding: .3rem;
+    min-height: 42px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.dlm-file.is-focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+.dlm-file.is-disabled {
+    opacity: .55;
+}
+
+.dlm-file.is-disabled .dlm-file-trigger {
+    cursor: not-allowed;
+}
+
+/* 提高优先级以覆盖上方的 input[type="file"] 兜底样式 */
+.dlm-file > input.dlm-file-native[type="file"] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1px;
+    min-width: 0;
+    height: 1px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    font-size: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.dlm-file-trigger {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .4rem .8rem;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font: inherit;
+    font-size: .9rem;
+    line-height: 1.4;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease;
+}
+
+.dlm-file-trigger:hover {
+    background: var(--border);
+}
+
+.dlm-file-trigger:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+}
+
+.dlm-file-icon {
+    flex: 0 0 auto;
+    color: var(--text-muted);
+}
+
+.dlm-file-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .9rem;
+    color: var(--text-muted);
+}
+
+.dlm-file-name.is-set {
+    color: var(--text);
+}
+
+.dlm-file-clear {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    margin-right: .2rem;
+    padding: 0;
+    background: transparent;
+    color: var(--text-muted);
+    border: 0;
+    border-radius: 999px;
+    font: inherit;
+    font-size: 1.15rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.dlm-file-clear:hover {
+    background: var(--border);
+    color: var(--text);
 }

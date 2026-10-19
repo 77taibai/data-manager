@@ -160,16 +160,16 @@ if ($q !== '') {
 <?php if ($items === []): ?>
     <div class="card empty-state">没有符合条件的链接。</div>
 <?php else: ?>
-    <div class="table-wrap">
-        <table class="data-table">
+    <div class="table-wrap links-table-wrap">
+        <table class="data-table links-table">
             <thead>
             <tr>
-                <th><input type="checkbox" data-check-all form="bulk-form"></th>
-                <th>URL</th>
+                <th class="col-check"><input type="checkbox" data-check-all form="bulk-form"></th>
+                <th class="col-url">URL</th>
                 <?php foreach ($attributes as $attr): ?>
-                    <th><?= Helpers::e((string) $attr['label']) ?></th>
+                    <th class="col-attr"><?= Helpers::e((string) $attr['label']) ?></th>
                 <?php endforeach; ?>
-                <th>操作</th>
+                <th class="col-actions">操作</th>
             </tr>
             </thead>
             <tbody>
@@ -191,18 +191,23 @@ if ($q !== '') {
                 }
                 ?>
                 <tr>
-                    <td><input type="checkbox" name="ids[]" value="<?= $linkId ?>" data-row-check form="bulk-form"></td>
-                    <td class="url-cell"><a href="<?= Helpers::e((string) $link['url']) ?>" target="_blank" rel="noopener"><?= Helpers::e((string) $link['url']) ?></a></td>
+                    <td class="col-check"><input type="checkbox" name="ids[]" value="<?= $linkId ?>" data-row-check form="bulk-form"></td>
+                    <td class="col-url url-cell"><a href="<?= Helpers::e((string) $link['url']) ?>" target="_blank" rel="noopener" title="<?= Helpers::e((string) $link['url']) ?>"><?= Helpers::e((string) $link['url']) ?></a></td>
                     <?php foreach ($attributes as $attr): ?>
-                        <?php $k = (string) $attr['key']; ?>
-                        <td><?= Helpers::e((string) ($values[$k]['display'] ?? '')) ?></td>
+                        <?php
+                        $k = (string) $attr['key'];
+                        $display = (string) ($values[$k]['display'] ?? '');
+                        ?>
+                        <td class="col-attr"><span class="cell-clip" title="<?= Helpers::e($display) ?>"><?= Helpers::e($display) ?></span></td>
                     <?php endforeach; ?>
-                    <td class="row-actions">
-                        <button type="button" class="btn btn-sm" data-link-edit data-link="<?= Helpers::e(Helpers::jsonEncode($payload)) ?>">编辑</button>
-                        <form method="post" action="<?= Helpers::url($basePath . '/links/' . $linkId . '/delete') ?>" class="inline-form" data-confirm="确定删除该链接？">
-                            <?= Csrf::field() ?>
-                            <button type="submit" class="btn btn-sm btn-danger">删除</button>
-                        </form>
+                    <td class="col-actions">
+                        <div class="row-actions">
+                            <button type="button" class="btn btn-sm" data-link-edit data-link="<?= Helpers::e(Helpers::jsonEncode($payload)) ?>">编辑</button>
+                            <form method="post" action="<?= Helpers::url($basePath . '/links/' . $linkId . '/delete') ?>" class="inline-form" data-confirm="确定删除该链接？">
+                                <?= Csrf::field() ?>
+                                <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
             <?php endforeach; ?>
