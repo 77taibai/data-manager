@@ -33,7 +33,10 @@ Dlm\Support\Config::load(DLM_ROOT . '/config.php');
 
 date_default_timezone_set((string) (Dlm\Support\Config::get('timezone') ?: 'Asia/Shanghai'));
 
-if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
+if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE
+    && !Dlm\Support\Request::isHealthRequest()
+) {
+    // 健康检查不建会话：探针请求高频且无需登录态，避免产生大量无用 session 文件
     $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
         || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
     session_set_cookie_params([
@@ -52,6 +55,17 @@ set_exception_handler(static function (Throwable $e): void {
         . "\n" . $e->getTraceAsString());
     if ($e instanceof Dlm\Support\ApiException) {
         Dlm\Support\Response::apiError($e->getMessage(), $e->apiCode, $e->httpStatus);
+        return;
+    }
+    if (Dlm\Support\Request::isHealthRequest()) {
+        // 健康检查只返回状态，不暴露异常细节（细节已写入日志）
+        Dlm\Support\Response::json([
+            'status' => 'fail',
+            'checks' => [
+                'web' => ['status' => 'fail', 'message' => '服务内部错误'],
+            ],
+            'timestamp' => date('c'),
+        ], 503);
         return;
     }
     if (Dlm\Support\Request::isApiRequest()) {

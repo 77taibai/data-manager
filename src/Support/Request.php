@@ -87,6 +87,14 @@ final class Request
         return $path === '/v1' || str_starts_with($path, '/v1/');
     }
 
+    /**
+     * 是否为健康检查请求：异常处理时据此返回 JSON 而不是 HTML 错误页。
+     */
+    public static function isHealthRequest(): bool
+    {
+        return self::resolvePath() === '/healthz';
+    }
+
     public function isMethod(string ...$methods): bool
     {
         return in_array($this->method, array_map('strtoupper', $methods), true);

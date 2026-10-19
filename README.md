@@ -25,6 +25,7 @@
 - [WebUI 使用说明](#webui-使用说明)
 - [CSV 导入导出](#csv-导入导出)
 - [HTTP API](#http-api)
+- [健康检查](#健康检查)
 - [数据库结构](#数据库结构)
 - [配置文件](#配置文件)
 - [安全设计](#安全设计)
@@ -46,6 +47,7 @@
 | CSV | 粘贴或上传导入（含前 5 行预览与逐行校验）、导出全部或选中（UTF-8 BOM，可再次导入） |
 | APIKEY | 每 KEY 绑定单个存储库、只读/读写两档、可设过期时间、明文仅显示一次、库内仅存 sha256 |
 | HTTP API | `GET /v1/schema`、`/v1/links` 增删改查、数组批量新增、过滤/排序/分页、统一响应格式 |
+| 运维 | `GET /healthz` 健康检查（WEB + MySQL），返回 200 / 503，可直接用于负载均衡与容器探针 |
 | 界面 | 手写 CSS + media query、深色模式（跟随系统 / 手动切换，localStorage 记忆）、自绘下拉菜单与文件选择控件 |
 
 ---
@@ -81,6 +83,7 @@
 │   │   ├── web.php            # WebUI 路由
 │   │   └── api.php            # /v1 HTTP API 路由
 │   ├── Controllers/
+│   │   ├── HealthController.php  # 健康检查（/healthz：WEB + MySQL）
 │   │   ├── Web/               # Install / Auth / Repository / Attribute / Link / ApiKey
 │   │   └── Api/               # ApiController（schema + links CRUD + 批量）
 │   ├── Models/                # Repository / Attribute / Option / Link / ApiKey / Setting / ValueCodec
@@ -307,6 +310,7 @@ server {
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
+| GET | `/healthz` | 健康检查（WEB + MySQL，无需登录，见 [健康检查](#健康检查)） |
 | GET | `/install` | 安装向导（已安装则跳 `/login`） |
 | POST | `/install` | 执行安装 |
 | GET | `/login` | 登录页 |
@@ -337,7 +341,7 @@ server {
 | POST | `/keys` | 创建 APIKEY（明文仅本次响应显示） |
 | POST | `/keys/{id}/delete` | 吊销 APIKEY |
 
-> 未挂 `admin` 中间件的只有：`/install`（GET/POST）、`/login`（GET/POST）、`/oidc/start`、`/oidc/callback`、`/logout`。其余页面路由都要求已登录；所有 POST 都挂了 `csrf` 中间件（校验失败返回 **419**）。
+> 未挂 `admin` 中间件的只有：`/healthz`、`/install`（GET/POST）、`/login`（GET/POST）、`/oidc/start`、`/oidc/callback`、`/logout`。其余页面路由都要求已登录；所有 POST 都挂了 `csrf` 中间件（校验失败返回 **419**）。
 
 ### 链接列表的过滤、搜索、排序与分页
 
@@ -421,6 +425,77 @@ https://example.com/app-1.1-beta.zip,测试版,1.1.0-beta,2026-02-15 09:30,110MB
 - 统一响应：`{"code":0,"message":"ok","data":...}`
 - 端点：`GET /v1/schema`、`GET /v1/links`、`POST /v1/links`（对象=单条，数组=批量）、`GET /v1/links/{id}`、`PATCH /v1/links/{id}`、`DELETE /v1/links/{id}`
 - 每个 KEY 只能访问其绑定的存储库；只读 KEY 的写操作返回 403
+
+---
+
+## 健康检查
+
+`GET /healthz` 供负载均衡、容器探针与监控使用，**无需登录**，也不需要 CSRF token。
+
+它同时检查两件事：
+
+| 检查项 | 判定方式 |
+| --- | --- |
+| `web` | 请求能被 PHP 正常执行并路由到控制器（即 WEB 服务可用），响应中带上 `php_version` |
+| `database` | 用 `config.php` 的 `db` 配置建立新 PDO 连接并执行 `SELECT 1`，超时 3 秒；成功时带上 `server_version` 与耗时 |
+
+### 响应
+
+全部通过 → **200**：
+
+```json
+{
+  "status": "ok",
+  "checks": {
+    "web": { "status": "ok", "php_version": "8.2.12" },
+    "database": { "status": "ok", "server_version": "5.7.44", "duration_ms": 1.83 }
+  },
+  "timestamp": "2026-01-01T12:00:00+08:00"
+}
+```
+
+任一失败 → **503**（`status` 为 `fail`，失败的检查项带 `message`）：
+
+```json
+{
+  "status": "fail",
+  "checks": {
+    "web": { "status": "ok", "php_version": "8.2.12" },
+    "database": { "status": "fail", "message": "数据库连接失败", "duration_ms": 3002.15 }
+  },
+  "timestamp": "2026-01-01T12:00:00+08:00"
+}
+```
+
+### 行为说明
+
+- 返回体**不套用** `/v1` 的 `{code,message,data}` 信封，便于监控系统直接读 `status`
+- 数据库失败的具体原因（可能含账号、主机等信息）只写入 `logs/php-error.log`，响应里只给通用提示
+- 系统**未安装**（无 `config.php`）时同样返回 **503**，`database` 项提示「系统尚未安装完成」，而不会像其他页面那样 302 跳转 `/install`（避免探针把 302 当成正常）
+- 该路由**不建立会话**，高频探测不会产生 session 文件
+- 未开启任何缓存（`Cache-Control: no-store`）
+
+### 探针配置示例
+
+```nginx
+location = /healthz {
+    access_log off;
+    proxy_pass http://127.0.0.1:8000;
+}
+```
+
+```yaml
+# docker-compose / Kubernetes
+healthcheck:
+  test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/healthz"]
+  interval: 30s
+  timeout: 5s
+  retries: 3
+```
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://dlm.example.com/healthz
+```
 
 ---
 
@@ -523,7 +598,7 @@ php tests/oidc_jwt.php  # 14 项：RS/ES 六种算法验签、payload 篡改拒�
 # 1) 启动服务
 php -S 127.0.0.1:8000 tests/dev-router.php
 
-# 2) WebUI 流程：登录 → 建库 → 建属性 → 建链接 → 过滤 → CSV 导出/预览 → 批量操作 → 建 KEY → 退出
+# 2) WebUI 流程：健康检查 → 登录 → 建库 → 建属性 → 建链接 → 过滤 → CSV 导出/预览 → 批量操作 → 建 KEY → 退出
 powershell -File tests/web_smoke.ps1 -BaseUrl http://127.0.0.1:8000 -Password '<管理密码>'
 
 # 3) HTTP API：401/403 鉴权、schema、单条/批量创建、重复 URL、过滤分页、PATCH、DELETE

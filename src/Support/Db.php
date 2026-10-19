@@ -11,7 +11,10 @@ final class Db
 {
     private static ?PDO $pdo = null;
 
-    public static function connect(array $db): PDO
+    /**
+     * @param int|null $timeout 连接超时秒数，null 表示使用 PDO/php.ini 默认值（健康检查会显式传短超时）
+     */
+    public static function connect(array $db, ?int $timeout = null): PDO
     {
         $dsn = sprintf(
             'mysql:host=%s;port=%d;dbname=%s;charset=%s',
@@ -20,11 +23,15 @@ final class Db
             (string) ($db['name'] ?? ''),
             (string) ($db['charset'] ?? 'utf8mb4')
         );
-        $pdo = new PDO($dsn, (string) ($db['user'] ?? ''), (string) ($db['pass'] ?? ''), [
+        $options = [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
-        ]);
+        ];
+        if ($timeout !== null) {
+            $options[PDO::ATTR_TIMEOUT] = $timeout;
+        }
+        $pdo = new PDO($dsn, (string) ($db['user'] ?? ''), (string) ($db['pass'] ?? ''), $options);
         return $pdo;
     }
 

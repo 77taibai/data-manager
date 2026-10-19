@@ -57,7 +57,12 @@ final class Router
 
     public function dispatch(Request $request): void
     {
+        $route = $this->findRoute($request);
+
+        // 未安装时统一跳转安装向导；带 allow_uninstalled 的路由（如 /healthz）不受此限制，
+        // 由控制器自行报告真实状态，避免探针拿到 302 而误判为健康。
         if (!Config::installed()
+            && ($route === null || empty($route['opts']['allow_uninstalled']))
             && $request->path !== '/install'
             && !str_starts_with($request->path, '/install/')
         ) {
@@ -69,6 +74,33 @@ final class Router
             return;
         }
 
+        if ($route === null) {
+            if (Request::isApiRequest()) {
+                Response::apiError('接口不存在', 4040, 404);
+            } else {
+                Response::html('<h1>404 Not Found</h1>', 404);
+            }
+            return;
+        }
+
+        $args = [];
+        foreach ($route['params'] as $index => $name) {
+            $args[$name] = $route['matches'][$index] ?? null;
+        }
+        $request->params = $args;
+
+        $this->runMiddleware($route['opts'], $request);
+
+        [$class, $method] = $route['handler'];
+        $controller = new $class();
+        $controller->{$method}($request, ...array_values($args));
+    }
+
+    /**
+     * 按请求方法与路径匹配路由，命中时把路径参数写入 matches。
+     */
+    private function findRoute(Request $request): ?array
+    {
         foreach ($this->routes as $route) {
             if ($route['method'] !== $request->method) {
                 continue;
@@ -77,25 +109,10 @@ final class Router
                 continue;
             }
             array_shift($m);
-            $args = [];
-            foreach ($route['params'] as $index => $name) {
-                $args[$name] = $m[$index] ?? null;
-            }
-            $request->params = $args;
-
-            $this->runMiddleware($route['opts'], $request);
-
-            [$class, $method] = $route['handler'];
-            $controller = new $class();
-            $controller->{$method}($request, ...array_values($args));
-            return;
+            $route['matches'] = $m;
+            return $route;
         }
-
-        if (Request::isApiRequest()) {
-            Response::apiError('接口不存在', 4040, 404);
-        } else {
-            Response::html('<h1>404 Not Found</h1>', 404);
-        }
+        return null;
     }
 
     private function runMiddleware(array $opts, Request $request): void

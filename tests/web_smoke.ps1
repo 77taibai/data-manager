@@ -105,6 +105,18 @@ function Invoke-Dlm {
 
 $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 
+$r = Invoke-Dlm -Method 'GET' -Path '/healthz' -Session $session
+$healthOk = $false
+$healthDetail = "status=$($r.Status)"
+try {
+    $json = $r.Content | ConvertFrom-Json
+    $healthOk = ($r.Status -eq 200 -and $json.status -eq 'ok' -and $json.checks.web.status -eq 'ok' -and $json.checks.database.status -eq 'ok')
+    $healthDetail += " body=$($json.status)/web:$($json.checks.web.status)/db:$($json.checks.database.status)"
+} catch {
+    $healthDetail += ' json-parse-error'
+}
+Write-Result '健康检查 /healthz 无需登录且 WEB+DB 正常' $healthOk $healthDetail
+
 $anon = Invoke-Dlm -Method 'GET' -Path '/' -Session $session -NoRedirect
 Write-Result '未登录访问首页被重定向到登录' ($anon.Status -eq 302 -and $anon.Location -match '/login') "status=$($anon.Status) loc=$($anon.Location)"
 

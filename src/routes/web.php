@@ -1,12 +1,16 @@
 <?php
 declare(strict_types=1);
 
+use Dlm\Controllers\HealthController;
 use Dlm\Controllers\Web\ApiKeyController;
 use Dlm\Controllers\Web\AttributeController;
 use Dlm\Controllers\Web\AuthController;
 use Dlm\Controllers\Web\InstallController;
 use Dlm\Controllers\Web\LinkController;
 use Dlm\Controllers\Web\RepositoryController;
+
+// 健康检查：不要求登录，未安装时也返回真实状态（allow_uninstalled）
+$router->get('/healthz', [HealthController::class, 'show'], ['allow_uninstalled' => true]);
 
 $router->get('/install', [InstallController::class, 'show']);
 $router->post('/install', [InstallController::class, 'run'], ['middleware' => 'csrf']);
