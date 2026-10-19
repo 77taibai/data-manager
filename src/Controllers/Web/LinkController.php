@@ -275,6 +275,12 @@ final class LinkController
             $attrKeys[(string) $attr['key']] = $attr;
         }
 
+        $uploadError = $this->csvUploadError($request);
+        if ($uploadError !== null) {
+            Response::json(['code' => 4000, 'message' => $uploadError, 'data' => null], 400);
+            return;
+        }
+
         $rows = $this->parseCsv($this->readCsvInput($request));
         if ($rows === []) {
             Response::json([
@@ -382,6 +388,13 @@ final class LinkController
         $attrKeys = [];
         foreach ($attributes as $attr) {
             $attrKeys[(string) $attr['key']] = $attr;
+        }
+
+        $uploadError = $this->csvUploadError($request);
+        if ($uploadError !== null) {
+            Flash::error($uploadError);
+            Response::redirect('/repos/' . (string) $repository['slug'] . '/import');
+            return;
         }
 
         $rows = $this->parseCsv($this->readCsvInput($request));
@@ -534,6 +547,30 @@ final class LinkController
             return $raw !== null ? (string) (int) $raw : '';
         }
         return (string) ($value['display'] ?? $value['raw'] ?? '');
+    }
+
+    private function csvUploadError(Request $request): ?string
+    {
+        if (trim((string) $request->input('csv', '')) !== '') {
+            return null;
+        }
+        $file = $request->files['file'] ?? null;
+        if (!is_array($file)) {
+            return null;
+        }
+        $error = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($error === UPLOAD_ERR_OK || $error === UPLOAD_ERR_NO_FILE) {
+            return null;
+        }
+        $reason = match ($error) {
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => '文件超出服务器允许的上传大小',
+            UPLOAD_ERR_PARTIAL => '文件只上传了一部分，请重试',
+            UPLOAD_ERR_NO_TMP_DIR => '服务器缺少临时目录',
+            UPLOAD_ERR_CANT_WRITE => '服务器无法写入临时文件',
+            UPLOAD_ERR_EXTENSION => '上传被服务器扩展中断',
+            default => '未知错误',
+        };
+        return 'CSV 文件上传失败：' . $reason;
     }
 
     private function readCsvInput(Request $request): string

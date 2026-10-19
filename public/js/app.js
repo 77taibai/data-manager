@@ -370,6 +370,13 @@
         }).then(function (response) {
             return response.json();
         }).then(function (result) {
+            if (result && result.code) {
+                if (target) {
+                    target.innerHTML = '<p class="flash flash-error">'
+                        + escapeHtml(result.message || '预览失败，请重试') + '</p>';
+                }
+                return;
+            }
             renderPreview(target, result && result.data ? result.data : null);
         }).catch(function () {
             if (target) { target.innerHTML = '<p class="flash flash-error">预览失败，请重试</p>'; }

@@ -17,6 +17,7 @@ $basePath = '/repos/' . $slug;
 <div class="card">
     <p class="muted">首行必须是表头，其中一列名为 <code>url</code>，其余列名对应属性 key。可粘贴 CSV 或上传文件。日期列格式为 YYYY-MM-DD HH:MM，文件大小列可填字节数或如 100MB。<code>url</code> 列支持 http / https / ed2k / magnet 链接。</p>
     <form id="import-form" method="post" action="<?= Helpers::url($basePath . '/import') ?>"
+          enctype="multipart/form-data"
           data-preview-action="<?= Helpers::url($basePath . '/import/preview') ?>" class="form-stack">
         <?= Csrf::field() ?>
         <label>粘贴 CSV
