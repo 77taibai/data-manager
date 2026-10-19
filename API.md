@@ -121,7 +121,7 @@ Authorization: Bearer dlm_3f8a1c9e5b7d2f4a6c8e0b1d3f5a7c9e2b4d6f8a
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `key` | string | 机器名，`^[a-z][a-z0-9_]*$`，同库唯一；用于 `attributes` 对象的键名与 `filter[...]` 的参数名 |
+| `key` | string | 机器名，`^[a-z][a-z0-9_-]*$`，同库唯一；用于 `attributes` 对象的键名与 `filter[...]` 的参数名 |
 | `label` | string | 中文显示名 |
 | `type` | string | `text` \| `date` \| `filesize` |
 | `required` | bool | 创建链接时是否必须提供 |

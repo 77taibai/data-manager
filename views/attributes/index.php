@@ -89,8 +89,8 @@ $typeNames = ['text' => '文本', 'date' => '日期时间', 'filesize' => '文�
             <label>名称 <span class="req">*</span>
                 <input type="text" name="label" required>
             </label>
-            <label>key <span class="req">*</span>（小写字母开头，仅含小写字母、数字、下划线）
-                <input type="text" name="key" required pattern="[a-z][a-z0-9_]*" placeholder="例如 color">
+            <label>key <span class="req">*</span>（小写字母开头，仅含小写字母、数字、下划线、连字符）
+                <input type="text" name="key" required pattern="[a-z][a-z0-9_-]*" placeholder="例如 color">
             </label>
             <label>类型
                 <select name="type">

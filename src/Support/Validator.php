@@ -24,8 +24,8 @@ final class Validator
     public static function attributeKey(mixed $key): ?string
     {
         $key = (string) $key;
-        if (preg_match('/^[a-z][a-z0-9_]*$/', $key) !== 1) {
-            return '属性 key 只能由小写字母、数字、下划线组成，且以字母开头';
+        if (preg_match('/^[a-z][a-z0-9_-]*$/', $key) !== 1) {
+            return '属性 key 只能由小写字母、数字、下划线、连字符组成，且以字母开头';
         }
         if (strlen($key) > 50) {
             return '属性 key 长度不能超过 50 个字符';

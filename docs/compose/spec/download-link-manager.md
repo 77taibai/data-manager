@@ -96,7 +96,7 @@ commits: e56b986..fd60399
 - `settings(`key` VARCHAR(50) PK, `value` TEXT)` — 存放 `schema_version`、`installed`。
 
 约定：
-- 属性 `key` 正则 `^[a-z][a-z0-9_]*$`，同一存储库内唯一。
+- 属性 `key` 正则 `^[a-z][a-z0-9_-]*$`，同一存储库内唯一。
 - 属性类型仅三种：`text`（文本）、`date`（日期+时间）、`filesize`（字节整数，界面带单位）。
 - 受约束属性单选；未受约束属性为自由输入。
 - 删除存储库/属性级联删除其链接、属性值与可选值，WebUI 二次确认。
