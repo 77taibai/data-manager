@@ -57,6 +57,19 @@ $dateInputValue = static function (string $value): string {
     $value = str_replace(' ', 'T', $value);
     return strlen($value) > 16 ? substr($value, 0, 16) : $value;
 };
+
+$activeFilterCount = 0;
+foreach ($rawFilters as $rawValue) {
+    if (is_array($rawValue)) {
+        continue;
+    }
+    if (trim((string) $rawValue) !== '') {
+        $activeFilterCount++;
+    }
+}
+if ($q !== '') {
+    $activeFilterCount++;
+}
 ?>
 <div class="page-head">
     <h1><?= Helpers::e((string) ($repo['name'] ?? '')) ?></h1>
@@ -89,46 +102,60 @@ $dateInputValue = static function (string $value): string {
     </div>
 </div>
 
-<form method="get" action="<?= Helpers::url($basePath) ?>" class="filters card">
-    <?php foreach ($attributes as $attr): ?>
-        <?php
-        $key = (string) $attr['key'];
-        $type = (string) $attr['type'];
-        ?>
+<details class="filters-panel card" data-filters-panel>
+    <summary class="filters-summary">
+        <span class="filters-summary-title">筛选条件</span>
+        <?php if ($activeFilterCount > 0): ?>
+            <span class="badge badge-active">已启用 <?= $activeFilterCount ?> 项</span>
+        <?php else: ?>
+            <span class="badge">未启用</span>
+        <?php endif; ?>
+        <span class="filters-summary-right">
+            <span class="filters-summary-hint" data-filters-hint-expand>展开</span>
+            <span class="filters-summary-hint" data-filters-hint-collapse>收起</span>
+        </span>
+    </summary>
+    <form method="get" action="<?= Helpers::url($basePath) ?>" class="filters">
+        <?php foreach ($attributes as $attr): ?>
+            <?php
+            $key = (string) $attr['key'];
+            $type = (string) $attr['type'];
+            ?>
+            <div class="field">
+                <label><?= Helpers::e((string) $attr['label']) ?></label>
+                <?php if ($type === 'date'): ?>
+                    <input type="datetime-local" name="filter[<?= Helpers::e($key) ?>]" value="<?= Helpers::e($dateInputValue((string) ($rawFilters[$key] ?? ''))) ?>">
+                <?php elseif ($type === 'filesize'): ?>
+                    <div class="size-range">
+                        <input type="text" name="filter[<?= Helpers::e($key) ?>_gte]" placeholder="最小，如 100MB" value="<?= Helpers::e((string) ($rawFilters[$key . '_gte'] ?? '')) ?>">
+                        <input type="text" name="filter[<?= Helpers::e($key) ?>_lte]" placeholder="最大，如 5GB" value="<?= Helpers::e((string) ($rawFilters[$key . '_lte'] ?? '')) ?>">
+                    </div>
+                <?php elseif ((int) $attr['constrained'] === 1): ?>
+                    <select name="filter[<?= Helpers::e($key) ?>]">
+                        <option value="">全部</option>
+                        <?php foreach (($attr['options'] ?? []) as $opt): ?>
+                            <option value="<?= Helpers::e((string) $opt) ?>" <?= (string) ($rawFilters[$key] ?? '') === (string) $opt ? 'selected' : '' ?>><?= Helpers::e((string) $opt) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                <?php else: ?>
+                    <input type="text" name="filter[<?= Helpers::e($key) ?>]" value="<?= Helpers::e((string) ($rawFilters[$key] ?? '')) ?>">
+                <?php endif; ?>
+            </div>
+        <?php endforeach; ?>
         <div class="field">
-            <label><?= Helpers::e((string) $attr['label']) ?></label>
-            <?php if ($type === 'date'): ?>
-                <input type="datetime-local" name="filter[<?= Helpers::e($key) ?>]" value="<?= Helpers::e($dateInputValue((string) ($rawFilters[$key] ?? ''))) ?>">
-            <?php elseif ($type === 'filesize'): ?>
-                <div class="size-range">
-                    <input type="text" name="filter[<?= Helpers::e($key) ?>_gte]" placeholder="最小，如 100MB" value="<?= Helpers::e((string) ($rawFilters[$key . '_gte'] ?? '')) ?>">
-                    <input type="text" name="filter[<?= Helpers::e($key) ?>_lte]" placeholder="最大，如 5GB" value="<?= Helpers::e((string) ($rawFilters[$key . '_lte'] ?? '')) ?>">
-                </div>
-            <?php elseif ((int) $attr['constrained'] === 1): ?>
-                <select name="filter[<?= Helpers::e($key) ?>]">
-                    <option value="">全部</option>
-                    <?php foreach (($attr['options'] ?? []) as $opt): ?>
-                        <option value="<?= Helpers::e((string) $opt) ?>" <?= (string) ($rawFilters[$key] ?? '') === (string) $opt ? 'selected' : '' ?>><?= Helpers::e((string) $opt) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            <?php else: ?>
-                <input type="text" name="filter[<?= Helpers::e($key) ?>]" value="<?= Helpers::e((string) ($rawFilters[$key] ?? '')) ?>">
-            <?php endif; ?>
+            <label>关键词</label>
+            <input type="search" name="q" value="<?= Helpers::e($q) ?>" placeholder="URL 或文本属性">
         </div>
-    <?php endforeach; ?>
-    <div class="field">
-        <label>关键词</label>
-        <input type="search" name="q" value="<?= Helpers::e($q) ?>" placeholder="URL 或文本属性">
-    </div>
-    <input type="hidden" name="sort" value="<?= Helpers::e($sort) ?>">
-    <?php if ($pageSize !== (int) $defaultPageSize): ?>
-        <input type="hidden" name="page_size" value="<?= $pageSize ?>">
-    <?php endif; ?>
-    <div class="field field-actions">
-        <button type="submit" class="btn btn-primary">筛选</button>
-        <a class="btn" href="<?= Helpers::url($basePath) ?>">重置</a>
-    </div>
-</form>
+        <input type="hidden" name="sort" value="<?= Helpers::e($sort) ?>">
+        <?php if ($pageSize !== (int) $defaultPageSize): ?>
+            <input type="hidden" name="page_size" value="<?= $pageSize ?>">
+        <?php endif; ?>
+        <div class="field field-actions">
+            <button type="submit" class="btn btn-primary">筛选</button>
+            <a class="btn" href="<?= Helpers::url($basePath) ?>">重置</a>
+        </div>
+    </form>
+</details>
 
 <?php if ($items === []): ?>
     <div class="card empty-state">没有符合条件的链接。</div>

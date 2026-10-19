@@ -381,3 +381,512 @@
         toggleBulkAttr();
     });
 })();
+
+/* ============================================================
+ * 自定义下拉菜单
+ * ------------------------------------------------------------
+ * 渐进增强：保留原生 <select> 作为真正的表单控件（提交 / 校验 /
+ * 读写 value 均不受影响），只在其上方渲染一套与站内 UI 一致的
+ * 触发器 + 浮层菜单。
+ * ============================================================ */
+(function () {
+    'use strict';
+
+    if (window.DLM && window.DLM.selectsReady) { return; }
+
+    var SELECTOR = 'select:not([data-native-select]):not([multiple])';
+    var GAP = 6;
+    var EDGE = 8;
+    var MAX_HEIGHT = 320;
+    var counter = 0;
+    var instances = [];
+    var openInst = null;
+
+    function textOf(node) {
+        return (node.textContent || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function optionList(select) {
+        return Array.prototype.slice.call(select.options || []);
+    }
+
+    function EnhancedSelect(select) {
+        var self = this;
+
+        self.select = select;
+        self.id = 'dlm-sel-' + (++counter);
+        self.menu = null;
+        self.open = false;
+        self.activeIndex = -1;
+
+        var wrap = document.createElement('div');
+        wrap.className = 'dlm-select';
+        select.parentNode.insertBefore(wrap, select);
+
+        var trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = 'dlm-select-trigger';
+        trigger.id = self.id + '-trigger';
+        trigger.setAttribute('aria-haspopup', 'listbox');
+        trigger.setAttribute('aria-expanded', 'false');
+        trigger.innerHTML = '<span class="dlm-select-value"></span>'
+            + '<span class="dlm-select-arrow" aria-hidden="true"></span>';
+
+        wrap.appendChild(trigger);
+        wrap.appendChild(select);
+
+        select.classList.add('dlm-select-native');
+        select.setAttribute('tabindex', '-1');
+
+        self.wrap = wrap;
+        self.trigger = trigger;
+        self.valueEl = trigger.querySelector('.dlm-select-value');
+
+        var ariaLabel = select.getAttribute('aria-label');
+        if (ariaLabel) {
+            trigger.setAttribute('aria-label', ariaLabel);
+        } else if (!select.closest('label')) {
+            var field = select.closest('.field');
+            var lab = field ? field.querySelector('label') : null;
+            if (lab) { trigger.setAttribute('aria-label', textOf(lab)); }
+        }
+
+        self.sync();
+        self.bindNative();
+        self.bindTrigger();
+
+        if (select.disabled) {
+            wrap.classList.add('is-disabled');
+        }
+    }
+
+    EnhancedSelect.prototype.bindNative = function () {
+        var self = this;
+        var select = self.select;
+        var proto = window.HTMLSelectElement && window.HTMLSelectElement.prototype;
+
+        // 同步通过 JS 直接赋值（例如弹窗回填表单）产生的变化
+        if (proto) {
+            ['value', 'selectedIndex'].forEach(function (prop) {
+                var desc = Object.getOwnPropertyDescriptor(proto, prop);
+                if (!desc || !desc.set) { return; }
+                Object.defineProperty(select, prop, {
+                    configurable: true,
+                    enumerable: false,
+                    get: function () { return desc.get.call(select); },
+                    set: function (next) {
+                        desc.set.call(select, next);
+                        self.sync();
+                    }
+                });
+            });
+        }
+
+        // 原生 select 被隐藏，但仍可能在 label 激活 / 表单校验时被触发
+        select.addEventListener('mousedown', function (event) { event.preventDefault(); });
+        select.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (event.detail === 0) { self.openMenu(); } else { self.toggle(); }
+        });
+        select.addEventListener('focus', function () { self.trigger.focus(); });
+        select.addEventListener('change', function () {
+            self.wrap.classList.remove('is-invalid');
+            self.sync();
+        });
+        select.addEventListener('invalid', function () {
+            self.wrap.classList.add('is-invalid');
+        });
+    };
+
+    EnhancedSelect.prototype.bindTrigger = function () {
+        var self = this;
+
+        self.trigger.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            // event.detail === 0 表示这次 click 不是真实鼠标点击（例如点击包裹
+            // 该下拉的 <label> 时浏览器转发过来的）。此时只负责"打开"，不再
+            // 反向关闭，避免点标签时菜单闪烁。
+            if (event.detail === 0) {
+                self.openMenu();
+                return;
+            }
+            self.toggle();
+        });
+
+        self.trigger.addEventListener('keydown', function (event) {
+            var key = event.key;
+            var handled = true;
+
+            if (key === 'Escape') {
+                if (self.open) { self.close(); }
+            } else if (key === 'ArrowDown' || key === 'Down') {
+                if (self.open) { self.move(1); } else { self.openMenu(); }
+            } else if (key === 'ArrowUp' || key === 'Up') {
+                if (self.open) { self.move(-1); } else { self.openMenu(); }
+            } else if (key === 'Home') {
+                if (self.open) { self.setActive(self.firstEnabled(), true); } else { handled = false; }
+            } else if (key === 'End') {
+                if (self.open) { self.setActive(self.lastEnabled(), true); } else { handled = false; }
+            } else if (key === 'Enter' || key === ' ' || key === 'Spacebar') {
+                if (self.open) {
+                    if (self.activeIndex >= 0) { self.choose(self.activeIndex); }
+                    else { self.close(); }
+                } else {
+                    self.openMenu();
+                }
+            } else if (key === 'Tab') {
+                if (self.open) { self.close(); }
+                handled = false;
+            } else if (key.length === 1 && /\S/.test(key)) {
+                self.typeahead(key);
+            } else {
+                handled = false;
+            }
+
+            if (handled) { event.preventDefault(); }
+        });
+    };
+
+    EnhancedSelect.prototype.sync = function () {
+        var self = this;
+        var select = self.select;
+        var index = select.selectedIndex;
+        var opt = index >= 0 ? select.options[index] : null;
+        var text = opt ? textOf(opt) : '';
+
+        self.valueEl.textContent = text || '请选择';
+        self.valueEl.classList.toggle('is-placeholder', !opt || opt.value === '');
+        self.wrap.classList.toggle('is-disabled', !!select.disabled);
+        self.trigger.disabled = !!select.disabled;
+
+        if (self.open) { self.refreshSelection(); }
+    };
+
+    EnhancedSelect.prototype.firstEnabled = function () {
+        var opts = optionList(this.select);
+        for (var i = 0; i < opts.length; i++) {
+            if (!opts[i].disabled) { return i; }
+        }
+        return -1;
+    };
+
+    EnhancedSelect.prototype.lastEnabled = function () {
+        var opts = optionList(this.select);
+        for (var i = opts.length - 1; i >= 0; i--) {
+            if (!opts[i].disabled) { return i; }
+        }
+        return -1;
+    };
+
+    EnhancedSelect.prototype.move = function (delta) {
+        var opts = optionList(this.select);
+        if (!opts.length) { return; }
+        var start = this.activeIndex;
+        if (start < 0) { start = delta > 0 ? -1 : opts.length; }
+        var i = start;
+        for (var step = 0; step < opts.length; step++) {
+            i += delta;
+            if (i < 0) { i = opts.length - 1; }
+            if (i >= opts.length) { i = 0; }
+            if (!opts[i].disabled) {
+                this.setActive(i, true);
+                return;
+            }
+        }
+    };
+
+    EnhancedSelect.prototype.typeahead = function (char) {
+        var self = this;
+        var opts = optionList(self.select);
+        var needle = char.toLowerCase();
+        var start = self.activeIndex + 1;
+
+        for (var step = 0; step < opts.length; step++) {
+            var i = (start + step) % opts.length;
+            if (opts[i].disabled) { continue; }
+            if (textOf(opts[i]).toLowerCase().indexOf(needle) === 0) {
+                if (self.open) { self.setActive(i, true); }
+                else { self.choose(i); }
+                return;
+            }
+        }
+    };
+
+    EnhancedSelect.prototype.setActive = function (index, scrollIntoView) {
+        var self = this;
+        if (!self.menu) { return; }
+        self.activeIndex = index;
+
+        var nodes = self.menu.querySelectorAll('.dlm-select-option');
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+            var isActive = Number(node.getAttribute('data-index')) === index;
+            node.classList.toggle('is-active', isActive);
+            if (isActive && scrollIntoView) {
+                // 只滚动菜单自身，避免带动整个页面
+                var menu = self.menu;
+                var top = node.offsetTop;
+                var bottom = top + node.offsetHeight;
+                if (top < menu.scrollTop) {
+                    menu.scrollTop = top;
+                } else if (bottom > menu.scrollTop + menu.clientHeight) {
+                    menu.scrollTop = bottom - menu.clientHeight;
+                }
+            }
+        }
+
+        var active = self.menu.querySelector('.dlm-select-option.is-active');
+        if (active && active.id) {
+            self.trigger.setAttribute('aria-activedescendant', active.id);
+        } else {
+            self.trigger.removeAttribute('aria-activedescendant');
+        }
+    };
+
+    EnhancedSelect.prototype.refreshSelection = function () {
+        var self = this;
+        if (!self.menu) { return; }
+        var index = self.select.selectedIndex;
+        var nodes = self.menu.querySelectorAll('.dlm-select-option');
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+            var selected = Number(node.getAttribute('data-index')) === index;
+            node.classList.toggle('is-selected', selected);
+            node.setAttribute('aria-selected', selected ? 'true' : 'false');
+        }
+    };
+
+    EnhancedSelect.prototype.buildMenu = function () {
+        var self = this;
+        var select = self.select;
+
+        var menu = document.createElement('div');
+        menu.className = 'dlm-select-menu';
+        menu.id = self.id + '-menu';
+        menu.setAttribute('role', 'listbox');
+        menu.setAttribute('tabindex', '-1');
+
+        if (!select.options.length) {
+            var empty = document.createElement('div');
+            empty.className = 'dlm-select-empty';
+            empty.textContent = '暂无可选项';
+            menu.appendChild(empty);
+        } else {
+            for (var i = 0; i < select.children.length; i++) {
+                var child = select.children[i];
+                if (child.tagName === 'OPTGROUP') {
+                    if (child.label) {
+                        var groupLabel = document.createElement('div');
+                        groupLabel.className = 'dlm-select-group';
+                        groupLabel.textContent = child.label;
+                        menu.appendChild(groupLabel);
+                    }
+                    for (var j = 0; j < child.children.length; j++) {
+                        if (child.children[j].tagName === 'OPTION') {
+                            menu.appendChild(self.buildOption(child.children[j]));
+                        }
+                    }
+                } else if (child.tagName === 'OPTION') {
+                    menu.appendChild(self.buildOption(child));
+                }
+            }
+        }
+
+        self.menu = menu;
+        self.trigger.setAttribute('aria-controls', menu.id);
+    };
+
+    EnhancedSelect.prototype.buildOption = function (opt) {
+        var self = this;
+
+        var el = document.createElement('div');
+        el.className = 'dlm-select-option';
+        el.id = self.id + '-opt-' + opt.index;
+        el.setAttribute('role', 'option');
+        el.setAttribute('data-index', String(opt.index));
+        el.setAttribute('aria-selected', opt.selected ? 'true' : 'false');
+
+        var text = document.createElement('span');
+        text.className = 'dlm-select-option-text';
+        text.textContent = textOf(opt);
+        el.appendChild(text);
+
+        if (opt.selected) { el.classList.add('is-selected'); }
+        if (opt.disabled) {
+            el.classList.add('is-disabled');
+            el.setAttribute('aria-disabled', 'true');
+        } else {
+            el.addEventListener('mouseenter', function () { self.setActive(opt.index, false); });
+            el.addEventListener('click', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                self.choose(opt.index);
+            });
+        }
+
+        return el;
+    };
+
+    EnhancedSelect.prototype.choose = function (index) {
+        var self = this;
+        var opt = self.select.options[index];
+        if (!opt || opt.disabled) { return; }
+
+        self.close();
+        self.select.selectedIndex = index;
+        self.select.dispatchEvent(new Event('change', { bubbles: true }));
+        self.trigger.focus();
+    };
+
+    EnhancedSelect.prototype.toggle = function () {
+        if (this.open) { this.close(); } else { this.openMenu(); }
+    };
+
+    EnhancedSelect.prototype.openMenu = function () {
+        var self = this;
+        if (self.open || self.select.disabled) { return; }
+        if (openInst && openInst !== self) { openInst.close(); }
+
+        self.buildMenu();
+        document.body.appendChild(self.menu);
+
+        self.open = true;
+        openInst = self;
+        self.wrap.classList.add('is-open');
+        self.trigger.setAttribute('aria-expanded', 'true');
+
+        self.position();
+
+        var index = self.select.selectedIndex >= 0 ? self.select.selectedIndex : self.firstEnabled();
+        self.setActive(index, true);
+
+        document.addEventListener('mousedown', onDocumentDown, true);
+        document.addEventListener('scroll', onScroll, true);
+        window.addEventListener('resize', onResize);
+    };
+
+    EnhancedSelect.prototype.close = function () {
+        var self = this;
+        if (!self.open) { return; }
+
+        self.open = false;
+        if (openInst === self) { openInst = null; }
+        self.wrap.classList.remove('is-open');
+        self.trigger.setAttribute('aria-expanded', 'false');
+        self.trigger.removeAttribute('aria-activedescendant');
+
+        if (self.menu && self.menu.parentNode) {
+            self.menu.parentNode.removeChild(self.menu);
+        }
+        self.menu = null;
+        self.activeIndex = -1;
+
+        document.removeEventListener('mousedown', onDocumentDown, true);
+        document.removeEventListener('scroll', onScroll, true);
+        window.removeEventListener('resize', onResize);
+    };
+
+    EnhancedSelect.prototype.position = function () {
+        var self = this;
+        var menu = self.menu;
+        if (!menu) { return; }
+
+        var rect = self.trigger.getBoundingClientRect();
+        var vw = document.documentElement.clientWidth;
+        var vh = document.documentElement.clientHeight;
+
+        menu.style.minWidth = Math.round(rect.width) + 'px';
+        menu.style.maxWidth = Math.max(160, vw - EDGE * 2) + 'px';
+        menu.style.maxHeight = '';
+
+        var below = vh - rect.bottom - GAP - EDGE;
+        var above = rect.top - GAP - EDGE;
+        var menuHeight = menu.offsetHeight;
+        var top;
+
+        if (menuHeight <= below || below >= above) {
+            top = rect.bottom + GAP;
+            menu.style.maxHeight = Math.min(MAX_HEIGHT, Math.max(120, below)) + 'px';
+        } else {
+            menu.style.maxHeight = Math.min(MAX_HEIGHT, Math.max(120, above)) + 'px';
+            top = rect.top - GAP - menu.offsetHeight;
+        }
+
+        var menuWidth = menu.offsetWidth;
+        var left = rect.left;
+        if (left + menuWidth > vw - EDGE) { left = vw - EDGE - menuWidth; }
+        if (left < EDGE) { left = EDGE; }
+
+        menu.style.top = Math.round(top) + 'px';
+        menu.style.left = Math.round(left) + 'px';
+    };
+
+    function onDocumentDown(event) {
+        if (!openInst) { return; }
+        var target = event.target;
+        if (!target || !target.closest) { return; }
+        if (openInst.menu && openInst.menu.contains(target)) { return; }
+        if (openInst.trigger.contains(target)) { return; }
+        // 点击包裹该下拉的 <label> 时，浏览器会把点击转发给原生 select，
+        // 这里不关闭，避免"先关闭再重新打开"的闪烁。
+        var label = target.closest('label');
+        if (label && label.contains(openInst.trigger)) { return; }
+        openInst.close();
+    }
+
+    function onScroll(event) {
+        if (!openInst) { return; }
+        var target = event.target;
+        if (openInst.menu && target && openInst.menu.contains(target)) { return; }
+
+        var rect = openInst.trigger.getBoundingClientRect();
+        var vh = document.documentElement.clientHeight;
+        if (rect.bottom < 0 || rect.top > vh) {
+            openInst.close();
+            return;
+        }
+        openInst.position();
+    }
+
+    function onResize() {
+        if (openInst) { openInst.position(); }
+    }
+
+    function enhance(root) {
+        var scope = root || document;
+        var nodes = scope.querySelectorAll(SELECTOR);
+        for (var i = 0; i < nodes.length; i++) {
+            var select = nodes[i];
+            if (select.classList.contains('dlm-select-native')) { continue; }
+            if (select.dataset.dlmEnhanced === '1') { continue; }
+            select.dataset.dlmEnhanced = '1';
+            instances.push(new EnhancedSelect(select));
+        }
+    }
+
+    function syncAll() {
+        instances.forEach(function (inst) {
+            if (inst.select.isConnected === false) { return; }
+            inst.sync();
+        });
+    }
+
+    document.addEventListener('reset', function (event) {
+        if (!event.target || !event.target.querySelectorAll) { return; }
+        window.setTimeout(syncAll, 0);
+    }, true);
+
+    window.DLM = window.DLM || {};
+    window.DLM.enhanceSelects = enhance;
+    window.DLM.syncSelects = syncAll;
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () { enhance(); });
+    } else {
+        enhance();
+    }
+
+    window.DLM.selectsReady = true;
+})();
