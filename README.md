@@ -621,7 +621,9 @@ powershell -File tests/oidc_smoke.ps1
 出于安全考虑，向导不会覆盖已有配置。删除 `config.php` 后重新安装（表结构为 `IF NOT EXISTS`，不会丢数据）。
 
 **Q：登录页提示「配置文件中尚未设置管理密码」？**
-`config.php` 里没有 `admin.password_hash` 也没有 `admin.password`（例如安装时只启用了 OIDC）。此时只能用 OIDC 登录，或手动补上密码哈希。
+`config.php` 里没有 `admin.password_hash` 也没有 `admin.password`，并且没有启用 OIDC。此时无法登录，需手动补上密码哈希或配置 OIDC。
+
+> 只配置了 OIDC（没有管理密码）属于正常用法：登录页只显示「使用 OIDC 登录」按钮，不会出现上述提示。
 
 **Q：忘记管理密码？**
 编辑 `config.php`，把 `admin.password_hash` 换成新的哈希：

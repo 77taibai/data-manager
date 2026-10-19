@@ -26,9 +26,12 @@ final class AuthController
             Response::redirect('/');
             return;
         }
-        $this->renderLogin([
-            'error' => Auth::hasPassword() ? null : '配置文件 config.php 中尚未设置管理密码',
-        ]);
+        // 只配置了 OIDC 时没有密码是正常状态，不需要提示
+        $error = null;
+        if (!Auth::hasPassword() && !Oidc::enabled()) {
+            $error = '配置文件 config.php 中尚未设置管理密码';
+        }
+        $this->renderLogin(['error' => $error]);
     }
 
     public function login(Request $request): void
@@ -38,6 +41,11 @@ final class AuthController
             return;
         }
         if (!Auth::hasPassword()) {
+            // 只配置了 OIDC 时密码登录不可用，直接回到登录页（页面上只有 OIDC 按钮）
+            if (Oidc::enabled()) {
+                Response::redirect('/login');
+                return;
+            }
             $this->renderLogin(['error' => '配置文件 config.php 中尚未设置管理密码']);
             return;
         }
